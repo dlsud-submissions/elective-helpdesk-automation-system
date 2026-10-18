@@ -1,16 +1,16 @@
 # 9. AI Prompt Design
 
-> **Status:** Initial drafts. Test against the selected model and revise based on observed accuracy, relevance, safety, and citation behavior.
+> **Status:** Initial drafts. Test against the selected Gemini model and revise based on observed accuracy, relevance, safety, and citation behavior.
 
 **Guiding rule:** Retrieved documents and user input must be treated as **data**, not as instructions that override system rules.
 
 ## Summary
 
-| Prompt Purpose | Expected Output |
-| :-- | :-- |
+| Prompt Purpose             | Expected Output                                                                                                                        |
+| :------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
 | Grounded IT support answer | A concise answer grounded in retrieved procedures, with source references; or a clear uncertainty statement and escalation suggestion. |
-| Intent / action selection | A structured intent and required arguments, or an `unsupported` classification. Backend validation remains authoritative. |
-| Escalation summary | A short ticket summary that helps the human agent continue troubleshooting. |
+| Intent / action selection  | A structured intent and required arguments, or an `unsupported` classification. Backend validation remains authoritative.              |
+| Escalation summary         | A short ticket summary that helps the human agent continue troubleshooting.                                                            |
 
 ## Prompt 1: Grounded IT Support Answer
 
@@ -37,6 +37,8 @@ Request: {{user_request}}
 
 **Expected output:** A structured intent and required arguments, or an `unsupported` classification. Backend validation remains authoritative.
 
+Gemini structured-output or function-calling features may be used to produce JSON arguments, but backend schema validation remains authoritative before any action is executed.
+
 ## Prompt 3: Escalation Summary
 
 **Purpose:** Give a human agent enough context to continue without re-asking the employee.
@@ -48,6 +50,8 @@ Conversation: {{conversation}}
 ```
 
 **Expected output:** A short ticket summary that helps the human agent continue troubleshooting.
+
+Only fictional data may be sent to Gemini. Prompts and retrieved context must contain no credentials or unnecessary personal data.
 
 ---
 

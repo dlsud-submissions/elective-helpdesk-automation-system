@@ -39,11 +39,11 @@ Complete the following in date order. Work may overlap where dependencies allow;
 - Confirm repository layout, package manager, branch/PR workflow, environment-file policy, and GitHub repository settings. Draft the PR template and CI workflow under `.github/`; define formatting, lint, typecheck, and test checks. Prepare a GitHub ruleset/branch-protection configuration and required-check list, to be enforced after the CI checks exist and pass.
 - Set up root and app-level `package.json` scripts and matching VS Code tasks. Include install-all, create-env, start-all, start-client/server, format-fix/check, lint-fix/check, frontend/backend test-watch, verify all, and Supabase link/push/reset/seed commands. Document prerequisites and ensure workspace tasks call the package scripts instead of duplicating command logic.
 - Record the planned React/Vite client and Express/TypeScript server roots and feature/shared architecture. Do not scaffold application source or create files under `client/src/` or `server/src/`; source implementation starts in Sprint 2.
-- Prepare Dockerfiles and a local Docker Compose workflow as development configuration only. Verify Docker Engine and Compose prerequisites, document ports/environment placeholders, and keep secrets out of configuration. Keep Supabase local services under the Supabase CLI workflow and document how containers will reach host-run Ollama. Defer image builds and app-container smoke tests until Sprint 2 provides application source.
+- Prepare Dockerfiles and a local Docker Compose workflow as development configuration only. Verify Docker Engine and Compose prerequisites, document ports/environment placeholders, and keep secrets out of configuration. Pass `GEMINI_API_KEY` to containers only through runtime environment variables, never baked into images. Keep Supabase local services under the Supabase CLI workflow. Defer image builds and app-container smoke tests until Sprint 2 provides application source.
 - Create and connect the Vercel frontend and Render backend projects to the repository; document intended build/start commands and configure environment-variable names/placeholders. Keep secrets in provider settings, not source control. Defer application deployment and health checks until Sprint 2 adds app code.
 - Set up Supabase CLI and project linkage, local configuration, Auth settings, and `pgvector` availability. Document the schema, `profiles` relationship to `auth.users`, role ownership, and RLS boundaries. Do not create or push migrations or seed data in Sprint 1; implement them in Sprint 2.
-- Install and verify Ollama locally; select and record the model and embedding model, confirm both are available, and document pull/run/test steps and hardware assumptions. Keep model access server-side, and document that hosted Render cannot call a developer's localhost Ollama instance without an explicitly reachable model host.
-- Verify a fresh-checkout documentation/setup path, CI checks applicable to repository configuration, Vercel/Render project configuration, Docker Compose configuration, Supabase CLI/project link, and local Ollama inference. Record application build/deployment checks as Sprint 2 follow-ups, with blockers and owners.
+- Create a Google AI Studio API key, select and record the chat and embedding model IDs, verify one sample generation request and one embedding request, and record the embedding dimension and free-tier limits visible in AI Studio. Keep the key server-side and add only `GEMINI_API_KEY`, `GEMINI_CHAT_MODEL`, `GEMINI_EMBEDDING_MODEL`, and `EMBEDDING_DIMENSIONS` placeholders to the environment example; do not commit values.
+- Verify a fresh-checkout documentation/setup path, CI checks applicable to repository configuration, Vercel/Render project configuration, Docker Compose configuration, Supabase CLI/project link, and Gemini API sample calls. Record application build/deployment checks as Sprint 2 follow-ups, with blockers and owners.
 
 ### Week 2: October 25–31
 
@@ -69,13 +69,13 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 2
 - Apply and verify the agreed Supabase schema migrations; connect backend configuration to Supabase Auth, profiles, and the application database without exposing privileged keys.
 - Implement ticket persistence and core ticket service operations, including input validation, allowed status transitions, requester ownership, and role-aware access.
 - Curate fictional IT support articles and implement repeatable knowledge-article ingestion, normalization, chunking, and source metadata.
-- Generate embeddings with the selected Ollama embedding model and store article chunks in Supabase PostgreSQL with `pgvector`; record reproducible indexing steps.
+- Generate embeddings with the selected Gemini embedding model through the server-side AI provider adapter and store article chunks in Supabase PostgreSQL with `pgvector`; handle batching and rate limits, and record reproducible indexing steps.
 - Add focused unit tests for ticket rules, chunking, embedding/indexing boundaries, and invalid inputs.
 
 ### Week 4: November 8–14
 
 - Implement vector retrieval with configurable result limits and similarity thresholds; return article/source metadata with each retrieved chunk.
-- Connect retrieval and Ollama answer generation to an authenticated backend API path. Ground responses only in retrieved approved content and return source references or an uncertainty/escalation result.
+- Connect retrieval and Gemini answer generation to an authenticated backend API path. Ground responses only in retrieved approved content and return source references or an uncertainty/escalation result.
 - Validate request/response contracts, error cases, and authorization at the API boundary; keep model and database credentials server-side.
 - Run backend unit and integration checks against the local Supabase/seed workflow; document model, index, and test prerequisites.
 - Demonstrate the end-to-end backend flow from seeded article through retrieval to a cited answer, record defects and limitations, and hand off Sprint 3 integration work.
@@ -112,8 +112,8 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 4
 - Test prompt-injection and untrusted retrieved-content cases. Verify model proposals cannot bypass backend allowlists, validation, confirmation, or authorization.
 - Audit logs and application logs for secrets and unnecessary personal data; verify errors are useful to users without exposing internal details.
 - Build and run a small documented RAG evaluation set; assess retrieval relevance, answer grounding, source references, uncertainty behavior, and escalation outcomes.
-- Exercise API validation, database failures, unavailable Ollama, webhook failures, duplicate submissions, and other recovery paths; fix prioritized defects.
-- Measure representative response latency and check timeout/resource behavior on the selected local model; record hardware and deployment limitations.
+- Exercise API validation, database failures, Gemini API unavailability, HTTP 429 rate limits, timeouts, webhook failures, duplicate submissions, and other recovery paths; fix prioritized defects.
+- Measure latency including Gemini network round-trip, observed rate-limit behavior, and Render cold-start effects; record model IDs and sample size.
 - Run responsive/accessibility checks and a full end-to-end regression of employee, agent, and administrator workflows; produce a release-candidate test result and unresolved-risk list.
 
 ## Sprint 5 — Finalization & Defense
@@ -122,7 +122,7 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 4
 
 Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 5 task plan](sprints/sprint-5/tasks.md).
 
-- Confirm the release scope and deployment decision. Verify Vercel, Render, Supabase, and reachable-model configuration for the chosen demo; if hosted AI is not reachable, document and rehearse the approved local demonstration path.
+- Confirm the release scope and deployment decision. Verify Vercel, Render, and Supabase configuration, ensure the Gemini key is set only in Render, and check quota headroom for demo day. Document and rehearse a fallback for API unavailability or quota exhaustion.
 - Freeze and smoke-test the release candidate, verify environment configuration and secret handling, and record the deployed URLs or local startup commands.
 - Finish the README and technical documentation for setup, architecture, database/migrations, API, workflows, known limitations, and troubleshooting.
 - Publish the final test report with executed checks, results, defects fixed, remaining limitations, and RAG/security evaluation evidence.

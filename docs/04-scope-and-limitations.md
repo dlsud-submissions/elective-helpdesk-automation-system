@@ -19,14 +19,16 @@
 - Connection to a real corporate Active Directory, identity provider, or production ServiceNow/Jira instance unless access is explicitly provided.
 - Real password changes, account provisioning, or software installation on employee devices. These are simulated or represented by safe demo workflows unless an approved test integration is available.
 - Guaranteed resolution of every support issue, or fully autonomous handling of sensitive requests.
-- Training a custom foundation model. The project uses an Ollama-served language model.
+- Training a custom foundation model. The project uses the hosted Gemini API for chat and embeddings; exact model IDs are to be recorded by the team.
 - Production-grade uptime, enterprise-scale load, and compliance certification.
 - Use of real employee personal data or secrets in prompts, logs, or demo datasets.
+- Dependence on a third-party hosted API means quota limits and availability are outside the team's control; only fictional data may be sent under the free-tier terms.
 
 ## To Confirm
 
 - Final scope and acceptance criteria agreed by all four members.
 - Whether Jira, ServiceNow, n8n, or another integration will be available; otherwise use a clearly labelled simulation.
+- Whether Gemini API free-tier quota is sufficient for development and demo day.
 
 ---
 

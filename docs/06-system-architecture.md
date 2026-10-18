@@ -12,7 +12,7 @@ flowchart TD
     VEC[("pgvector<br/>embeddings")]
     ACT["Action / Webhook Handler"]
     WF["Allowlisted Workflows<br/>e.g. create ticket"]
-    LLM["Ollama Model API"]
+    LLM["Gemini API (hosted, server-side calls)"]
     AUTH["Supabase Auth<br/>auth.users"]
 
     Browser --> FE
@@ -35,7 +35,7 @@ sequenceDiagram
     participant FE as React Frontend
     participant API as Express API
     participant RAG as RAG Service
-    participant LLM as Ollama
+    participant LLM as Gemini API
     participant DB as Supabase
     participant AUTH as Supabase Auth
 
@@ -46,6 +46,8 @@ sequenceDiagram
     API->>DB: Look up profile and role
     API->>API: Validate request and permissions
     API->>RAG: Retrieve relevant KB passages
+    RAG->>LLM: Embed query via server-side adapter
+    LLM-->>RAG: Query embedding
     RAG->>DB: Vector search (pgvector)
     DB-->>RAG: Top matching chunks
     RAG-->>API: Context + source refs
@@ -59,11 +61,11 @@ sequenceDiagram
 
 ## Description
 
-The frontend sends a question to the Express API. The API verifies the user's Supabase Auth token, looks up their profile and role, validates the request and permissions, retrieves relevant knowledge-base passages, and calls the Ollama-served LLM with the question and retrieved context. If the model proposes a supported action, the backend validates the action and arguments before executing it. The result, response, and relevant audit event are returned or stored. Unsupported or uncertain requests receive a safe response or are escalated.
+The frontend sends a question to the Express API. The API verifies the user's Supabase Auth token, looks up their profile and role, validates the request and permissions, and uses the provider adapter in `server/src/shared/ai/` for Gemini query embeddings and answer generation. The RAG service retrieves relevant knowledge-base passages and sends the question and retrieved context to the hosted Gemini API. If the model proposes a supported action, the backend validates the action and arguments before executing it. The result, response, and relevant audit event are returned or stored. Unsupported or uncertain requests receive a safe response or are escalated.
 
 ## Security Boundary
 
-API keys and privileged credentials remain server-side. The LLM does not receive direct database credentials or unrestricted access to external systems.
+`GEMINI_API_KEY` and privileged credentials remain in server environment variables only, are never sent to the browser, and are never included in client environment variables. The LLM does not receive direct database credentials or unrestricted access to external systems.
 
 ---
 
