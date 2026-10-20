@@ -1,0 +1,264 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🌐 Client: Dev",
+      "type": "npm",
+      "script": "start",
+      "path": "client",
+      "presentation": {
+        "group": "dev-env",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🖥️ Server: Dev",
+      "type": "npm",
+      "script": "dev",
+      "path": "server",
+      "presentation": {
+        "group": "dev-env",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🚀 Dev: Start All",
+      "dependsOn": ["🌐 Client: Dev", "🖥️ Server: Dev"],
+      "dependsOrder": "parallel",
+      "presentation": { "reveal": "silent" }
+    },
+    {
+      "label": "🧪 Client: Tests (watch)",
+      "type": "npm",
+      "script": "test:watch",
+      "path": "client",
+      "presentation": {
+        "group": "testing",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🧪 Client: Tests (run once)",
+      "type": "npm",
+      "script": "test:run",
+      "path": "client",
+      "presentation": {
+        "group": "testing",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🧪 Server: Tests (watch)",
+      "type": "npm",
+      "script": "test:watch",
+      "path": "server",
+      "presentation": {
+        "group": "testing",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🧪 Server: Tests (run once)",
+      "type": "npm",
+      "script": "test",
+      "path": "server",
+      "options": {
+        "env": {
+          "NODE_ENV": "test",
+          "CORS_ALLOWED_ORIGINS": "http://localhost:5173"
+        }
+      },
+      "presentation": {
+        "group": "testing",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🧹 Client: Lint",
+      "type": "npm",
+      "script": "lint",
+      "path": "client",
+      "problemMatcher": ["$eslint-stylish"],
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🧹 Server: Lint",
+      "type": "npm",
+      "script": "lint",
+      "path": "server",
+      "problemMatcher": ["$eslint-stylish"],
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "📝 Create Env Files",
+      "type": "npm",
+      "script": "env:create",
+      "path": ".",
+      "presentation": {
+        "group": "setup",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "✨ Format: Check",
+      "type": "npm",
+      "script": "format:check",
+      "path": ".",
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "✨ Format: Fix",
+      "type": "npm",
+      "script": "format",
+      "path": ".",
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🏗️ Client: Build",
+      "type": "npm",
+      "script": "build",
+      "path": "client",
+      "presentation": {
+        "group": "build",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🏗️ Server: Build",
+      "type": "npm",
+      "script": "build",
+      "path": "server",
+      "presentation": {
+        "group": "build",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "✅ Client: Typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "path": "client",
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "✅ Server: Typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "path": "server",
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "✅ CI: Verify All",
+      "dependsOn": [
+        "🧪 Client: Tests (run once)",
+        "🧪 Server: Tests (run once)",
+        "🧹 Client: Lint",
+        "🧹 Server: Lint",
+        "✨ Format: Check",
+        "🏗️ Client: Build",
+        "🏗️ Server: Build",
+        "✅ Client: Typecheck",
+        "✅ Server: Typecheck"
+      ],
+      "dependsOrder": "parallel",
+      "presentation": { "reveal": "silent" }
+    },
+    {
+      "label": "📦 Install All Dependencies",
+      "type": "npm",
+      "script": "install:all",
+      "path": ".",
+      "presentation": { "panel": "shared", "reveal": "always" }
+    },
+    {
+      "label": "🔗 Supabase: Link Project",
+      "type": "npm",
+      "script": "supabase:link",
+      "path": ".",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🚀 Supabase: Push Migrations",
+      "type": "npm",
+      "script": "supabase:push",
+      "path": ".",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🌍 Supabase: Reset Remote DB",
+      "type": "npm",
+      "script": "supabase:reset",
+      "path": ".",
+      "detail": "Reset the configured remote Supabase project state.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🏠 Supabase: Reset Local DB",
+      "type": "npm",
+      "script": "supabase:reset:local",
+      "path": ".",
+      "detail": "Local-only reset for a local Supabase stack; use the remote reset task for deployed environments.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🌱 Supabase: Seed",
+      "type": "npm",
+      "script": "supabase:seed",
+      "path": ".",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    }
+  ]
+}
