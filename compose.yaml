@@ -1,0 +1,37 @@
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: elective-helpdesk-client
+    ports:
+      - '5173:5173'
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-https://placeholder.supabase.co}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-placeholder-anon-key}
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: elective-helpdesk-server
+    ports:
+      - '3001:3001'
+    environment:
+      PORT: ${PORT:-3001}
+      NODE_ENV: ${NODE_ENV:-development}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-replace-me}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      SUPABASE_URL: ${SUPABASE_URL:-https://placeholder.supabase.co}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-placeholder-service-role}
+    restart: unless-stopped
+
+# Local Compose as a development workflow only.
+# Supabase CLI owns the local database stack. The app containers receive
+# Gemini values only at runtime and must reach the hosted Gemini API over HTTPS.
