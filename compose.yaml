@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: elective-helpdesk-client
     ports:
-      - "5173:5173"
+      - '5173:5173'
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
       VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-https://placeholder.supabase.co}
@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: elective-helpdesk-server
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
       PORT: ${PORT:-3001}
       NODE_ENV: ${NODE_ENV:-development}

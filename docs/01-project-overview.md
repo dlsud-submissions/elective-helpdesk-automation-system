@@ -25,12 +25,12 @@ It is a capstone prototype, **not** a deployment connected to a real organizatio
 
 ## Project Information
 
-| Item | Detail |
-| :-- | :-- |
-| Course | Applied Generative AI for IT Solution Development |
+| Item          | Detail                                                               |
+| :------------ | :------------------------------------------------------------------- |
+| Course        | Applied Generative AI for IT Solution Development                    |
 | Project Title | AI-Powered Enterprise Helpdesk & Workflow Automation System (AI-HAS) |
-| Team Members | Sta. Ana, Matthew E.; Rullan, Harvey; Saluta, James; Reganit, John |
-| Instructor | _To be completed_ |
+| Team Members  | Sta. Ana, Matthew E.; Rullan, Harvey; Saluta, James; Reganit, John   |
+| Instructor    | _To be completed_                                                    |
 
 ---
 
