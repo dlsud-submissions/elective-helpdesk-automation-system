@@ -1,10 +1,5 @@
 export type TicketStatus =
-  | 'new'
-  | 'open'
-  | 'in_progress'
-  | 'pending'
-  | 'resolved'
-  | 'closed';
+  'new' | 'open' | 'in_progress' | 'pending' | 'resolved' | 'closed';
 
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 

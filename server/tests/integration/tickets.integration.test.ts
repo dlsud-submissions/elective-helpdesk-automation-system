@@ -39,12 +39,10 @@ describe('ticket endpoints', () => {
   });
 
   it('enforces legal status transitions', async () => {
-    const created = await request(app)
-      .post('/api/tickets')
-      .send({
-        title: 'MFA reset',
-        description: 'Need new phone provisioning.',
-      });
+    const created = await request(app).post('/api/tickets').send({
+      title: 'MFA reset',
+      description: 'Need new phone provisioning.',
+    });
 
     const ticketId = created.body.ticket.id;
 

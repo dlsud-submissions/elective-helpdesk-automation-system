@@ -9,7 +9,10 @@ export const chatController = {
 
       response.json(answer);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'The answer request could not be processed.';
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'The answer request could not be processed.';
       response.status(400).json({ error: message });
     }
   },

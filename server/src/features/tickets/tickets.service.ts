@@ -54,14 +54,23 @@ export function resolveRequestContext(
   };
 }
 
-export function normalizePriority(priority: string | undefined): TicketPriority {
+export function normalizePriority(
+  priority: string | undefined
+): TicketPriority {
   const value = (priority ?? 'medium').toLowerCase();
 
-  if (value === 'low' || value === 'medium' || value === 'high' || value === 'urgent') {
+  if (
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'urgent'
+  ) {
     return value;
   }
 
-  throw new Error('Ticket priority must be one of low, medium, high, or urgent.');
+  throw new Error(
+    'Ticket priority must be one of low, medium, high, or urgent.'
+  );
 }
 
 export function validateTicketRequest(input: TicketRequest): TicketRequest {

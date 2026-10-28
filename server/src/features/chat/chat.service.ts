@@ -31,7 +31,9 @@ function rankKnowledgeForQuestion(question: string): RetrievalSource[] {
     .filter((article) => article.isPublished)
     .map((article) => {
       const articleContent = `${article.title} ${article.body}`.toLowerCase();
-      const matches = articleContent.split(/\s+/).filter((term) => normalized.includes(term)).length;
+      const matches = articleContent
+        .split(/\s+/)
+        .filter((term) => normalized.includes(term)).length;
       const similarity = matches > 0 ? Math.min(0.95, 0.35 + matches / 20) : 0;
       return {
         id: article.id,
@@ -64,7 +66,8 @@ export function validateQuestion(input: unknown): string {
 }
 
 export function answerKnowledgeQuestion(question: string): ChatAnswer {
-  const unsupportedScope = /(payroll|finance|legal|hr|benefits|banking|salary)/i;
+  const unsupportedScope =
+    /(payroll|finance|legal|hr|benefits|banking|salary)/i;
 
   if (unsupportedScope.test(question)) {
     return {

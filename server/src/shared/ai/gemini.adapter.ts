@@ -55,7 +55,11 @@ export function generateGroundedAnswer(
       relevance: Number(source.similarity.toFixed(3)),
     })),
     confidence:
-      bestSimilarity >= 0.7 ? 'high' : bestSimilarity >= 0.45 ? 'medium' : 'low',
+      bestSimilarity >= 0.7
+        ? 'high'
+        : bestSimilarity >= 0.45
+          ? 'medium'
+          : 'low',
     status: 'answered',
   };
 }

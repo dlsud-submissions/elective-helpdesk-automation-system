@@ -8,12 +8,14 @@ import {
   updateTicket,
 } from './tickets.service.js';
 
-function getHeaderValue(value: string | string[] | undefined): string | undefined {
+function getHeaderValue(
+  value: string | string[] | undefined
+): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
 function getRouteParamId(value: string | string[] | undefined): string {
-  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
 }
 
 export const ticketsController = {
@@ -37,14 +39,18 @@ export const ticketsController = {
     try {
       const context = resolveRequestContext({
         userId: getHeaderValue(request.headers['x-user-id']) ?? 'local-user',
-        role: (getHeaderValue(request.headers['x-user-role']) as 'employee' | 'agent' | 'admin' | undefined) ?? 'employee',
-        displayName: getHeaderValue(request.headers['x-user-name']) ?? 'Employee User',
+        role:
+          (getHeaderValue(request.headers['x-user-role']) as
+            'employee' | 'agent' | 'admin' | undefined) ?? 'employee',
+        displayName:
+          getHeaderValue(request.headers['x-user-name']) ?? 'Employee User',
       });
 
       const ticket = createTicket(request.body ?? {}, context);
       response.status(201).json({ ticket });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Ticket could not be created.';
+      const message =
+        error instanceof Error ? error.message : 'Ticket could not be created.';
       response.status(400).json({ error: message });
     }
   },
@@ -53,15 +59,19 @@ export const ticketsController = {
     try {
       const context = resolveRequestContext({
         userId: getHeaderValue(request.headers['x-user-id']) ?? 'local-user',
-        role: (getHeaderValue(request.headers['x-user-role']) as 'employee' | 'agent' | 'admin' | undefined) ?? 'employee',
-        displayName: getHeaderValue(request.headers['x-user-name']) ?? 'Employee User',
+        role:
+          (getHeaderValue(request.headers['x-user-role']) as
+            'employee' | 'agent' | 'admin' | undefined) ?? 'employee',
+        displayName:
+          getHeaderValue(request.headers['x-user-name']) ?? 'Employee User',
       });
 
       const ticketId = getRouteParamId(request.params.ticketId);
       const ticket = updateTicket(ticketId, request.body ?? {}, context);
       response.json({ ticket });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Ticket could not be updated.';
+      const message =
+        error instanceof Error ? error.message : 'Ticket could not be updated.';
       response.status(400).json({ error: message });
     }
   },
