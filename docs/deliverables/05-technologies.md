@@ -18,17 +18,17 @@
 
 The backend service should be configured in Render before Sprint 2 app code is added, even though the Express source is intentionally deferred during Sprint 1. The planned setting is a single Node.js 20 service that points to the repository and runs the future Express API once the server workspace exists.
 
-| Setting | Proposed Sprint 1 value |
-| :------ | :---------------------- |
-| Repository path | `dlsud-submissions/elective-helpdesk-automation-system` |
-| Service name | `ai-has-api` |
-| Runtime | Node.js 20 |
-| Build command | `npm ci --prefix server` |
-| Start command | `npm --prefix server run start` |
-| Health check path | `/api/health` |
-| Allowed browser origins | `https://*.vercel.app` and the eventual production Vercel project domain |
+| Setting                      | Proposed Sprint 1 value                                                                                                                                           |
+| :--------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository path              | `dlsud-submissions/elective-helpdesk-automation-system`                                                                                                           |
+| Service name                 | `ai-has-api`                                                                                                                                                      |
+| Runtime                      | Node.js 20                                                                                                                                                        |
+| Build command                | `npm ci --prefix server`                                                                                                                                          |
+| Start command                | `npm --prefix server run start`                                                                                                                                   |
+| Health check path            | `/api/health`                                                                                                                                                     |
+| Allowed browser origins      | `https://*.vercel.app` and the eventual production Vercel project domain                                                                                          |
 | Server environment variables | `PORT`, `GEMINI_API_KEY`, `GEMINI_CHAT_MODEL`, `GEMINI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
-| Secret handling | Store only in Render provider settings; never commit values to Git or browser config |
+| Secret handling              | Store only in Render provider settings; never commit values to Git or browser config                                                                              |
 
 ### Render guardrails
 
