@@ -23,6 +23,19 @@ AI-HAS is a web-based IT helpdesk prototype that combines Retrieval-Augmented Ge
 | 11  | [Timeline](docs/11-timeline.md)                         | Sprint-based schedule (broad draft)      |
 | 12  | [Team Roles](docs/12-team-roles.md)                     | Member roles and responsibilities        |
 
+### Local backend setup
+
+Run the local Supabase stack and seed the fictional Sprint 2 corpus before testing the backend:
+
+```bash
+npm run env:server
+npm run supabase:reset:local
+npm run supabase:seed
+npm run test:server
+```
+
+The approved migration order is defined in `supabase/migrations/`, and the server keeps the privileged database key on the backend only via `SUPABASE_SERVICE_ROLE_KEY` in the local environment file.
+
 ### Not yet written
 
 - 8. UI Mockups
