@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI-HAS UI Mockup</title>
+    <meta
+      name="description"
+      content="Static HTML/CSS/JavaScript mockup of the AI-HAS employee, agent, and admin views. All data is fictional and all actions are simulated."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="signed-out">
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <div class="sim-banner">
+      <p>
+        <strong>Static mockup.</strong> All data is fictional and every action
+        is simulated in your browser. Nothing is saved or sent to a server.
+      </p>
+      <details class="mock-controls">
+        <summary>Mockup controls</summary>
+        <form id="mock-controls" class="mock-controls-body">
+          <div class="field" id="view-as-field">
+            <label for="view-as">View as</label>
+            <select id="view-as">
+              <option value="dana.cruz@example.test">
+                Employee: Dana Cruz
+              </option>
+              <option value="alex.tan@example.test">Agent: Alex Tan</option>
+              <option value="mika.reyes@example.test">Admin: Mika Reyes</option>
+            </select>
+          </div>
+          <fieldset>
+            <legend>Next simulated API call</legend>
+            <label
+              ><input type="radio" name="outcome" value="ok" checked />
+              Succeeds</label
+            >
+            <label
+              ><input type="radio" name="outcome" value="slow" /> Slow (service
+              waking up)</label
+            >
+            <label
+              ><input type="radio" name="outcome" value="error" /> Fails (server
+              error)</label
+            >
+            <label
+              ><input type="radio" name="outcome" value="denied" /> Denied
+              (403)</label
+            >
+          </fieldset>
+          <label class="checkbox"
+            ><input type="checkbox" id="empty-data" /> Show empty lists</label
+          >
+          <p class="hint">
+            The outcome resets to "Succeeds" after one simulated call.
+          </p>
+        </form>
+      </details>
+    </div>
+
+    <header class="app-header">
+      <button
+        type="button"
+        class="nav-toggle"
+        id="nav-toggle"
+        aria-expanded="false"
+        aria-controls="app-nav"
+      >
+        <span aria-hidden="true">&#9776;</span>
+        <span class="visually-hidden">Menu</span>
+      </button>
+      <a class="brand" id="brand" href="#/chat">
+        <span class="brand-mark" aria-hidden="true">AI</span>
+        <span>AI-HAS <span class="brand-sub">IT Helpdesk</span></span>
+      </a>
+      <div class="account" id="account" hidden>
+        <span class="account-name" id="account-name"></span>
+        <span class="role-badge" id="account-role"></span>
+        <button type="button" class="btn btn-secondary btn-small" id="sign-out">
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav class="app-nav" id="app-nav" aria-label="Main">
+        <ul>
+          <li><a href="#/chat" data-roles="employee agent admin">Ask IT</a></li>
+          <li>
+            <a href="#/tickets" data-roles="employee agent admin">My tickets</a>
+          </li>
+          <li>
+            <a href="#/tickets/new" data-roles="employee agent admin"
+              >New ticket</a
+            >
+          </li>
+          <li class="nav-group" data-roles="agent admin">Support team</li>
+          <li><a href="#/queue" data-roles="agent admin">Ticket queue</a></li>
+          <li class="nav-group" data-roles="admin">Administration</li>
+          <li><a href="#/knowledge" data-roles="admin">Knowledge base</a></li>
+          <li><a href="#/metrics" data-roles="admin">Metrics</a></li>
+        </ul>
+      </nav>
+
+      <main id="main" tabindex="-1"></main>
+    </div>
+
+    <dialog id="source-dialog" aria-labelledby="source-title">
+      <div class="dialog-body">
+        <h2 id="source-title"></h2>
+        <p class="meta" id="source-meta"></p>
+        <p id="source-excerpt"></p>
+        <form method="dialog">
+          <button class="btn btn-secondary" type="submit">Close</button>
+        </form>
+      </div>
+    </dialog>
+
+    <script src="script.js"></script>
+  </body>
+</html>
