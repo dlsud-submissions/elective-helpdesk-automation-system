@@ -141,8 +141,8 @@ erDiagram
 - How profile rows are created (trigger vs. application code).
 - Row Level Security policy design.
 - Retention of tickets and audit logs when a user is deleted.
-- Embedding dimension, which depends on the selected Gemini embedding model.
+- Embedding model and dimension: resolved as `gemini-embedding-001` with `EMBEDDING_DIMENSIONS=1536`; see [Gemini API Configuration](08-gemini-configuration.md).
 
 ---
 
-[← System Architecture](06-system-architecture.md) · [README](../README.md) · Next: [AI Prompt Design](09-ai-prompt-design.md)
+[← System Architecture](06-system-architecture.md) · [README](../../README.md) · Next: [Gemini API Configuration](08-gemini-configuration.md)

@@ -19,7 +19,7 @@
 - Connection to a real corporate Active Directory, identity provider, or production ServiceNow/Jira instance unless access is explicitly provided.
 - Real password changes, account provisioning, or software installation on employee devices. These are simulated or represented by safe demo workflows unless an approved test integration is available.
 - Guaranteed resolution of every support issue, or fully autonomous handling of sensitive requests.
-- Training a custom foundation model. The project uses the hosted Gemini API for chat and embeddings; exact model IDs are to be recorded by the team.
+- Training a custom foundation model. The project uses the hosted Gemini API for chat and embeddings; the selected chat model is `gemini-2.5-flash` and the embedding model is `gemini-embedding-001` (1536 dimensions); see [Gemini API Configuration](08-gemini-configuration.md).
 - Production-grade uptime, enterprise-scale load, and compliance certification.
 - Use of real employee personal data or secrets in prompts, logs, or demo datasets.
 - Dependence on a third-party hosted API means quota limits and availability are outside the team's control; only fictional data may be sent under the free-tier terms.
@@ -32,4 +32,4 @@
 
 ---
 
-[← Objectives](03-objectives.md) · [README](../README.md) · Next: [Technologies](05-technologies.md)
+[← Objectives](03-objectives.md) · [README](../../README.md) · Next: [Technologies](05-technologies.md)
