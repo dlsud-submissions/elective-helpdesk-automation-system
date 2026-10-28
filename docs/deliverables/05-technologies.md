@@ -14,6 +14,60 @@
 | Deployment          | Vercel + Render                                     | Vercel hosts the React frontend; Render hosts the Express API and reaches Gemini over outbound HTTPS. Set `GEMINI_API_KEY` only in Render provider settings, never in Vercel/client configuration. Free tiers have usage limits and Render services may sleep when idle.                                                         |
 | Version control     | GitHub                                              | Source control, collaboration, and deployment integration.                                                                                                                                                                                                                                                                       |
 
+## Vercel frontend project plan
+
+Owner: Saluta, James (S1-07) · support: Sta. Ana, Matthew
+
+The Vercel project hosts the Vite client from the `client/` workspace of the monorepo. The repository-tracked build settings live in [`client/vercel.json`](../../client/vercel.json) so they are reviewed in pull requests; the dashboard holds only the Git connection and environment variables.
+
+| Setting                    | Value                                                                                                                       |
+| :------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| Git repository             | `dlsud-submissions/elective-helpdesk-automation-system`                                                                     |
+| Project name               | `ai-has-web` (production URL `https://ai-has-web.vercel.app` if the name is available)                                      |
+| Root Directory             | `client`                                                                                                                    |
+| Include files outside root | Enabled (Vercel default). Required because `package-lock.json` and the npm workspace definition are at the repository root. |
+| Framework preset           | Vite (`framework` in `client/vercel.json`)                                                                                  |
+| Install command            | Vercel default. With the npm workspace it installs from the repository root lockfile.                                       |
+| Build command              | `npm run build` (runs `tsc -b && vite build` in `client/`)                                                                  |
+| Output directory           | `dist`                                                                                                                      |
+| SPA routing                | All paths rewrite to `/index.html` so client-side routes load on refresh.                                                   |
+| Node.js version            | 22.x, matching the root `engines` field and CI                                                                              |
+| Production branch          | `main`                                                                                                                      |
+| Preview deployments        | Every pull request and every push to a non-production branch, including `dev`                                               |
+
+### Client environment variables
+
+Vite inlines every `VITE_*` variable into the public JavaScript bundle, so only values that are safe for any visitor to read may be set here. Names match [`client/.env.example`](../../client/.env.example).
+
+| Variable                 | Production                                                | Preview                | Notes                                                     |
+| :----------------------- | :-------------------------------------------------------- | :--------------------- | :-------------------------------------------------------- |
+| `VITE_API_URL`           | Render API origin, e.g. `https://ai-has-api.onrender.com` | Same Render API origin | No trailing slash. Only one Render service is planned.    |
+| `VITE_SUPABASE_URL`      | Supabase project URL                                      | Same project URL       | Public value.                                             |
+| `VITE_SUPABASE_ANON_KEY` | Supabase publishable (anon) key                           | Same key               | Public by design; data is protected by RLS, not this key. |
+
+**Never set in Vercel:** `GEMINI_API_KEY`, `GEMINI_CHAT_MODEL`, `GEMINI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SUPABASE_SERVICE_ROLE_KEY`, or any other server variable from `server/.env.example`. Those belong only in Render. Adding a `VITE_` prefix to a secret would publish it.
+
+### CORS coordination with Render
+
+`server/src/config/cors.ts` matches origins exactly, so a wildcard such as `https://*.vercel.app` does **not** work and would be too broad. Render's `CORS_ALLOWED_ORIGINS` should list:
+
+- the production origin, e.g. `https://ai-has-web.vercel.app`
+- the stable `dev` branch alias, `https://ai-has-web-git-dev-<team-slug>.vercel.app`, for shared preview testing
+- `http://localhost:5173` only in local `.env` files, not in Render
+
+Per-commit preview URLs change on every push and are not allowlisted; test API calls from the `dev` alias or locally.
+
+### Status and remaining steps
+
+| Item                                         | Status                                                             | Owner          | Next action                                                                                                        |
+| :------------------------------------------- | :----------------------------------------------------------------- | :------------- | :----------------------------------------------------------------------------------------------------------------- |
+| Build settings recorded in the repository    | Done (`client/vercel.json`, this section)                          | Saluta, James  | Review in PR.                                                                                                      |
+| Create project and connect GitHub repository | Pending: needs Vercel access to the `dlsud-submissions` GitHub org | Saluta, James  | Install the Vercel GitHub app for the org (an org owner may need to approve), then import with the settings above. |
+| Environment variables                        | Pending: needs Render URL and Supabase project                     | Saluta, James  | Add the three `VITE_*` names for Production and Preview after S1-06 and S1-08 provide the values.                  |
+| Production domain in Render CORS             | Pending                                                            | Rullan, Harvey | Add the confirmed Vercel origins to `CORS_ALLOWED_ORIGINS` in Render.                                              |
+| Build and deployment smoke test              | Deferred to Sprint 2                                               | Saluta, James  | Confirm the first preview builds, routes refresh correctly, and the client reaches `/api/health`.                  |
+| Plan limits                                  | Recorded                                                           | Saluta, James  | Hobby plan is for non-commercial use with build and bandwidth limits; enough for the prototype and demo.           |
+
 ## Render backend service plan
 
 The backend service should be configured in Render before Sprint 2 app code is added, even though the Express source is intentionally deferred during Sprint 1. The planned setting is a single Node.js 20 service that points to the repository and runs the future Express API once the server workspace exists.
