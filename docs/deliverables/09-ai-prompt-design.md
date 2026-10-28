@@ -53,6 +53,10 @@ Conversation: {{conversation}}
 
 Only fictional data may be sent to Gemini. Prompts and retrieved context must contain no credentials or unnecessary personal data.
 
+## Output Contracts
+
+The compact taxonomy with per-prompt input contracts, structured output schemas, fallback behavior, citation rules, and prompt-injection handling is maintained in [AI Prompt Taxonomy and Output Contracts](08a-prompt-taxonomy.md). Prompt IDs `AI-P1` (grounded answer), `AI-P2` (intent/action proposal), and `AI-P3` (escalation summary) are used by the API specifications and testing matrix. Model selection and validation are recorded in [Gemini API Configuration](08-gemini-configuration.md).
+
 ---
 
-[← Database Design](07-database-design.md) · [README](../README.md) · Next: [Workflow Automation](10-workflow-automation.md)
+[← Gemini API Configuration](08-gemini-configuration.md) · [README](../../README.md) · Next: [Workflow Automation](10-workflow-automation.md)
