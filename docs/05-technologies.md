@@ -14,6 +14,30 @@
 | Deployment          | Vercel + Render                                     | Vercel hosts the React frontend; Render hosts the Express API and reaches Gemini over outbound HTTPS. Set `GEMINI_API_KEY` only in Render provider settings, never in Vercel/client configuration. Free tiers have usage limits and Render services may sleep when idle.                                                         |
 | Version control     | GitHub                                              | Source control, collaboration, and deployment integration.                                                                                                                                                                                                                                                                       |
 
+## Render backend service plan
+
+The backend service should be configured in Render before Sprint 2 app code is added, even though the Express source is intentionally deferred during Sprint 1. The planned setting is a single Node.js 20 service that points to the repository and runs the future Express API once the server workspace exists.
+
+| Setting | Proposed Sprint 1 value |
+| :------ | :---------------------- |
+| Repository path | `dlsud-submissions/elective-helpdesk-automation-system` |
+| Service name | `ai-has-api` |
+| Runtime | Node.js 20 |
+| Build command | `npm ci --prefix server` |
+| Start command | `npm --prefix server run start` |
+| Health check path | `/api/health` |
+| Allowed browser origins | `https://*.vercel.app` and the eventual production Vercel project domain |
+| Server environment variables | `PORT`, `GEMINI_API_KEY`, `GEMINI_CHAT_MODEL`, `GEMINI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| Secret handling | Store only in Render provider settings; never commit values to Git or browser config |
+
+### Render guardrails
+
+- The service is created for the repo root, not for a temporary standalone app folder; the server workspace is expected to live under `server/` in Sprint 2.
+- The health endpoint should return a lightweight JSON success payload once the Express API is added; do not require a production deployment check during Sprint 1 because there is no application source yet.
+- Any Vercel frontend domain must be allowlisted in the backend CORS policy. Keep the backend origin list explicit and do not use a wildcard for production credentialed requests.
+- `GEMINI_API_KEY` remains in Render only; it must never be exposed in client or Vercel environment variables.
+- Free-tier quotas, cold starts, and service sleep behavior should be documented in the final demo plan; if the instance sleeps, the app should fail gracefully or recover on the next request.
+
 ## Notes
 
 - React, Express.js, Supabase, the Gemini API, Vercel, and Render are the team's preferred choices.
