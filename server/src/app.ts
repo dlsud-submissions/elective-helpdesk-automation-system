@@ -1,7 +1,9 @@
 import cors from 'cors';
 import express from 'express';
 import { getAllowedOrigins } from './config/cors.js';
+import { chatRouter } from './features/chat/index.js';
 import { helloRouter } from './features/hello/index.js';
+import { ticketRouter } from './features/tickets/index.js';
 
 export const app = express();
 
@@ -13,3 +15,5 @@ app.get('/health', (_request, response) => {
 });
 
 app.use(helloRouter);
+app.use(ticketRouter);
+app.use(chatRouter);
