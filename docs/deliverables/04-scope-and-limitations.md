@@ -32,4 +32,4 @@
 
 ---
 
-[← Objectives](03-objectives.md) · [README](../README.md) · Next: [Technologies](05-technologies.md)
+[← Objectives](../deliverables/03-objectives.md) · [README](../../README.md) · Next: [Technologies](../deliverables/05-technologies.md)

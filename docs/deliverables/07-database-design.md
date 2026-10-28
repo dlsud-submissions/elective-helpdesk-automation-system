@@ -135,14 +135,14 @@ erDiagram
 - Never expose a service-role key in the browser.
 - Deleting an auth user should cascade or be handled for their profile, and the team should decide how tickets and audit logs are kept afterwards.
 
-## Open Decisions
+## Decisions and Open Questions
 
 - Which roles are required. Proposed values: employee, agent, admin.
 - How profile rows are created (trigger vs. application code).
 - Row Level Security policy design.
 - Retention of tickets and audit logs when a user is deleted.
-- Embedding dimension, which depends on the selected Gemini embedding model.
+- Embedding model and dimension: resolved as `gemini-embedding-001` with `EMBEDDING_DIMENSIONS=1536`; see [Gemini API Configuration](../deliverables/08-gemini-configuration.md).
 
 ---
 
-[← System Architecture](06-system-architecture.md) · [README](../README.md) · Next: [AI Prompt Design](09-ai-prompt-design.md)
+[← System Architecture](../deliverables/06-system-architecture.md) · [README](../../README.md) · Next: [Gemini API Configuration](../deliverables/08-gemini-configuration.md)

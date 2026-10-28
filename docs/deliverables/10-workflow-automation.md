@@ -38,4 +38,4 @@ flowchart TD
 
 ---
 
-[← AI Prompt Design](09-ai-prompt-design.md) · [README](../README.md) · Next: [Timeline](11-timeline.md)
+[← AI Prompt Design](09-ai-prompt-design.md) · [README](../../README.md) · Next: [Timeline](11-timeline.md)

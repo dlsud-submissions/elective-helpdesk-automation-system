@@ -1,6 +1,6 @@
 # 11. Timeline
 
-> **Status:** Broad draft. Sprint 1 begins Sunday, October 18, 2026. Calendar ranges below use consecutive seven-day weeks; Sprint 1 task owners and acceptance criteria are tracked in the [Sprint 1 task plan](sprints/sprint-1/tasks.md).
+> **Status:** Broad draft. Sprint 1 begins Sunday, October 18, 2026. Calendar ranges below use consecutive seven-day weeks; Sprint 1 task owners and acceptance criteria are tracked in the [Sprint 1 task plan](../sprints/sprint-1/tasks.md).
 
 ## Sprint Overview
 
@@ -31,7 +31,7 @@ gantt
 
 ### Weeks 1–2: October 18–31, 2026
 
-Complete the following in date order. Work may overlap where dependencies allow; the dated task owners, evidence, and acceptance criteria are in the [Sprint 1 task plan](sprints/sprint-1/tasks.md).
+Complete the following in date order. Work may overlap where dependencies allow; the dated task owners, evidence, and acceptance criteria are in the [Sprint 1 task plan](../sprints/sprint-1/tasks.md).
 
 ### Week 1: October 18–24
 
@@ -61,7 +61,7 @@ Complete the following in date order. Work may overlap where dependencies allow;
 
 ### Weeks 3–4: November 1–14, 2026
 
-Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 2 task plan](sprints/sprint-2/tasks.md).
+Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 2 task plan](../sprints/sprint-2/tasks.md).
 
 ### Week 3: November 1–7
 
@@ -84,7 +84,7 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 2
 
 ### Weeks 5–6: November 15–28, 2026
 
-Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 3 task plan](sprints/sprint-3/tasks.md).
+Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 3 task plan](../sprints/sprint-3/tasks.md).
 
 ### Week 5: November 15–21
 
@@ -106,7 +106,7 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 3
 
 ### Week 7: November 29–December 5, 2026
 
-Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 4 task plan](sprints/sprint-4/tasks.md).
+Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 4 task plan](../sprints/sprint-4/tasks.md).
 
 - Review Supabase RLS, API authentication, profile-role checks, ticket ownership, and agent/admin permissions; test allowed and denied access paths.
 - Test prompt-injection and untrusted retrieved-content cases. Verify model proposals cannot bypass backend allowlists, validation, confirmation, or authorization.
@@ -120,7 +120,7 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 4
 
 ### Week 8: December 6–12, 2026
 
-Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 5 task plan](sprints/sprint-5/tasks.md).
+Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 5 task plan](../sprints/sprint-5/tasks.md).
 
 - Confirm the release scope and deployment decision. Verify Vercel, Render, and Supabase configuration, ensure the Gemini key is set only in Render, and check quota headroom for demo day. Document and rehearse a fallback for API unavailability or quota exhaustion.
 - Freeze and smoke-test the release candidate, verify environment configuration and secret handling, and record the deployed URLs or local startup commands.
@@ -132,4 +132,4 @@ Detailed owners, dependencies, outputs, and reviewer checks are in the [Sprint 5
 
 ---
 
-[← Workflow Automation](10-workflow-automation.md) · [README](../README.md) · Next: [Team Roles](12-team-roles.md)
+[← Workflow Automation](10-workflow-automation.md) · [README](../../README.md) · Next: [Team Roles](12-team-roles.md)

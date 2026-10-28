@@ -34,4 +34,4 @@ It is a capstone prototype, **not** a deployment connected to a real organizatio
 
 ---
 
-[← Back to README](../README.md) · Next: [Problem Statement](02-problem-statement.md)
+[← Back to README](../../README.md) · Next: [Problem Statement](../deliverables/02-problem-statement.md)

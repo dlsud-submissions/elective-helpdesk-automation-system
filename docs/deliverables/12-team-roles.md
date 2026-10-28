@@ -15,4 +15,4 @@ The team jointly reviews security decisions, integration contracts, and end-to-e
 
 ---
 
-[← Timeline](11-timeline.md) · [README](../README.md)
+[← Timeline](11-timeline.md) · [README](../../README.md)

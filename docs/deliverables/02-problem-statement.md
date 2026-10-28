@@ -18,4 +18,4 @@ The application retains server-side validation, permission checks, audit logging
 
 ---
 
-[← Project Overview](01-project-overview.md) · [README](../README.md) · Next: [Objectives](03-objectives.md)
+[← Project Overview](../deliverables/01-project-overview.md) · [README](../../README.md) · Next: [Objectives](../deliverables/03-objectives.md)

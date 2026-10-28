@@ -17,4 +17,4 @@ To develop a web-based AI helpdesk prototype that provides grounded IT support a
 
 ---
 
-[← Problem Statement](02-problem-statement.md) · [README](../README.md) · Next: [Scope & Limitations](04-scope-and-limitations.md)
+[← Problem Statement](../deliverables/02-problem-statement.md) · [README](../../README.md) · Next: [Scope & Limitations](../deliverables/04-scope-and-limitations.md)

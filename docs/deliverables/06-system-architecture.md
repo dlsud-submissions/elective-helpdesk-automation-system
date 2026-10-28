@@ -69,4 +69,4 @@ The frontend sends a question to the Express API. The API verifies the user's Su
 
 ---
 
-[← Technologies](05-technologies.md) · [README](../README.md) · Next: [Database Design](07-database-design.md)
+[← Technologies](../deliverables/05-technologies.md) · [README](../../README.md) · Next: [Database Design](../deliverables/07-database-design.md)
