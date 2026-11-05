@@ -40,7 +40,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,css,html,json,md,yaml,yml}\"",
     "format:fix": "npm run format",
     "lint:check": "npm run lint",
-    "supabase:link": "node scripts/supabase-link.mjs",
+    "supabase:link": "supabase link",
     "supabase:push": "supabase db push --remote",
     "supabase:reset": "supabase db reset --remote --no-seed",
     "supabase:reset:local": "supabase db reset",

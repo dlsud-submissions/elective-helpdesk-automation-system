@@ -234,7 +234,7 @@
       "type": "npm",
       "script": "supabase:link",
       "path": ".",
-      "detail": "Link to the hosted project; the ref is read from SUPABASE_URL in server/.env. Requires login.",
+      "detail": "Pick the hosted project to link from an interactive list. Requires login.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",

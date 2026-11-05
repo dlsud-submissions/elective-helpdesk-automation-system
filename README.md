@@ -34,7 +34,7 @@ npm run supabase:start        # prints the local API URL, anon key, and service_
 npm run supabase:reset:local  # applies supabase/migrations/ in order, then supabase/seed.sql
 ```
 
-To work with the hosted project instead, run `npm run supabase:login` once, then `npm run supabase:link`. The link script reads the project ref from `SUPABASE_URL` in `server/.env`. See [Supabase CLI](docs/deliverables/development-workflow.md#supabase-cli) for every script and its target.
+To work with the hosted project instead, run `npm run supabase:login` once, then `npm run supabase:link` and choose the project from the list. See [Supabase CLI](docs/deliverables/development-workflow.md#supabase-cli) for every script and its target.
 
 Copy the values printed by `npm run supabase:start` into the untracked env files:
 

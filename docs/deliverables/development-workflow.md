@@ -57,7 +57,7 @@ The Supabase CLI (v3) is a pinned dev dependency, so a global install isn't need
 | :----------------------------- | :----- | :------------------------------------------------------------------------------------------------- |
 | `npm run supabase:login`       | hosted | Sign in to the CLI (browser flow). Run once per machine.                                           |
 | `npm run supabase:logout`      | hosted | Remove the CLI access token from this machine.                                                     |
-| `npm run supabase:link`        | hosted | Link to the hosted project (see below).                                                            |
+| `npm run supabase:link`        | hosted | Choose the hosted project to link from an interactive list.                                        |
 | `npm run supabase:push:dry`    | hosted | List migrations that would be applied to the linked project.                                       |
 | `npm run supabase:push`        | hosted | Apply pending migrations to the linked project (asks for confirmation).                            |
 | `npm run supabase:reset`       | hosted | **Destructive:** wipe and rebuild the linked database from migrations. Never seeds.                |
@@ -65,7 +65,7 @@ The Supabase CLI (v3) is a pinned dev dependency, so a global install isn't need
 | `npm run supabase:reset:local` | local  | Rebuild the local database from migrations plus `supabase/seed.sql`.                               |
 | `npm run supabase:seed`        | local  | Re-run `supabase/seed.sql` against the local database (idempotent).                                |
 
-`supabase:link` needs the **project ref**: the 20-lowercase-letter Project ID from Dashboard → Project Settings → General, which is also the subdomain of `https://<ref>.supabase.co`. It is not the project name. The script reads the ref from `npm run supabase:link -- <ref>`, then `SUPABASE_PROJECT_REF`, then `SUPABASE_URL` in `server/.env`, and it rejects values that are not refs.
+`supabase:link` opens the CLI project picker in an interactive terminal. To skip the picker, pass the **project ref**: `npm run supabase:link -- --project-ref <ref>`. The ref is the 20-lowercase-letter Project ID from Dashboard → Project Settings → General, not the project name.
 
 The seed creates fictional accounts with a known password, so it is only ever run locally. The remote reset uses `--no-seed`.
 
