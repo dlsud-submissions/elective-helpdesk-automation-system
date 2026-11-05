@@ -9,7 +9,7 @@ const requiredFiles = [
   'client/src/App/index.ts',
   'server/.env.example',
   'server/src/app.ts',
-  'docs/resources/development-workflow.md',
+  'docs/deliverables/development-workflow.md',
 ];
 
 for (const file of requiredFiles) {

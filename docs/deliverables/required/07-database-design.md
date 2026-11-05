@@ -1,6 +1,6 @@
 # 7. Database Design
 
-> **Status:** Initial schema. Exact columns and relationships are to be finalized.
+> **Status:** Implemented in `supabase/migrations/` (core schema and RLS added in `20261105100000_helpdesk_core_schema.sql`).
 
 The app uses Supabase Auth, which provides the built-in `auth.users` table. Our own `profiles` table links to it one-to-one and holds application data such as display name and role. All other tables reference `profiles`.
 
@@ -34,6 +34,7 @@ erDiagram
 
     tickets {
         uuid id PK
+        bigint ticket_number "shown as TCK-n"
         uuid requester_id FK
         text title
         text description
@@ -41,6 +42,10 @@ erDiagram
         text priority
         text status
         uuid assigned_to FK
+        boolean is_escalated
+        uuid conversation_id FK
+        text escalation_summary
+        timestamptz resolved_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -65,7 +70,9 @@ erDiagram
     conversations {
         uuid id PK
         uuid requester_id FK
+        text title
         timestamptz created_at
+        timestamptz updated_at
     }
 
     messages {
@@ -73,6 +80,7 @@ erDiagram
         uuid conversation_id FK
         text sender_type
         text content
+        text outcome
         timestamptz created_at
         jsonb source_refs
     }
@@ -84,6 +92,7 @@ erDiagram
         text resource_type
         text resource_id
         text outcome
+        text summary
         timestamptz created_at
     }
 
@@ -101,17 +110,17 @@ erDiagram
 
 ### Entities
 
-| Entity                            | Example Fields                                                                                        | Purpose                                                                                |
-| :-------------------------------- | :---------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
-| `auth.users` _(Supabase managed)_ | id, email, last_sign_in_at, created_at, raw_user_meta_data                                            | Built-in authentication table. Not edited directly by the app.                         |
-| `profiles`                        | id (PK, FK → `auth.users.id`), display_name, role, created_at                                         | Application profile and role mapping, linked one-to-one to `auth.users`.               |
-| `tickets`                         | id, requester_id, title, description, category, priority, status, assigned_to, created_at, updated_at | Tracks support requests and their lifecycle.                                           |
-| `knowledge_articles`              | id, title, body, category, source_name, updated_at, is_published                                      | Stores approved support procedures.                                                    |
-| `knowledge_chunks`                | id, article_id, chunk_text, embedding                                                                 | Stores text chunks and vector embeddings for retrieval (pgvector).                     |
-| `conversations`                   | id, requester_id, created_at                                                                          | Groups chat sessions.                                                                  |
-| `messages`                        | id, conversation_id, sender_type, content, created_at, source_refs                                    | Stores chat messages and optional source references.                                   |
-| `audit_logs`                      | id, actor_id, action, resource_type, resource_id, outcome, created_at                                 | Records significant actions and workflow outcomes without storing unnecessary secrets. |
-| `automation_runs`                 | id, ticket_id, action_type, status, result_summary, created_at                                        | Tracks safe workflow attempts and outcomes.                                            |
+| Entity                            | Example Fields                                                                                                                                                                       | Purpose                                                                                |
+| :-------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| `auth.users` _(Supabase managed)_ | id, email, last_sign_in_at, created_at, raw_user_meta_data                                                                                                                           | Built-in authentication table. Not edited directly by the app.                         |
+| `profiles`                        | id (PK, FK → `auth.users.id`), display_name, role, created_at                                                                                                                        | Application profile and role mapping, linked one-to-one to `auth.users`.               |
+| `tickets`                         | id, ticket_number, requester_id, title, description, category, priority, status, assigned_to, is_escalated, conversation_id, escalation_summary, resolved_at, created_at, updated_at | Tracks support requests and their lifecycle.                                           |
+| `knowledge_articles`              | id, title, body, category, source_name, updated_at, is_published                                                                                                                     | Stores approved support procedures.                                                    |
+| `knowledge_chunks`                | id, article_id, chunk_text, embedding                                                                                                                                                | Stores text chunks and vector embeddings for retrieval (pgvector).                     |
+| `conversations`                   | id, requester_id, created_at                                                                                                                                                         | Groups chat sessions.                                                                  |
+| `messages`                        | id, conversation_id, sender_type, content, created_at, source_refs                                                                                                                   | Stores chat messages and optional source references.                                   |
+| `audit_logs`                      | id, actor_id, action, resource_type, resource_id, outcome, created_at                                                                                                                | Records significant actions and workflow outcomes without storing unnecessary secrets. |
+| `automation_runs`                 | id, ticket_id, action_type, status, result_summary, created_at                                                                                                                       | Tracks safe workflow attempts and outcomes.                                            |
 
 ### Relationships
 
@@ -135,12 +144,27 @@ erDiagram
 - Never expose a service-role key in the browser.
 - Deleting an auth user should cascade or be handled for their profile, and the team should decide how tickets and audit logs are kept afterwards.
 
-## Open Decisions
+## Row Level Security
 
-- Which roles are required. Proposed values: employee, agent, admin.
-- How profile rows are created (trigger vs. application code).
-- Row Level Security policy design.
-- Retention of tickets and audit logs when a user is deleted.
+RLS is enabled on every application table. The Express API uses the service role and enforces authorization in code. The policies below limit what a browser session holding only the anon key and a user JWT can do directly.
+
+| Table                                | Browser (authenticated) access                                                                        |
+| :----------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| `profiles`                           | Read own row; agents/admins read all. No insert/update/delete, so users cannot change their own role. |
+| `tickets`                            | Requesters read own; agents/admins read and update all; insert only as yourself with status `new`.    |
+| `conversations`, `messages`          | Owner only. Users may insert only `user` messages into their own conversations.                       |
+| `audit_logs`, `automation_runs`      | Admins read; writes are service-role only.                                                            |
+| `knowledge_articles`                 | Read published articles.                                                                              |
+| `knowledge_chunks`, `match_chunks()` | No browser access; service role only.                                                                 |
+
+`public.current_app_role()` (security definer) reads `profiles.role` for `auth.uid()` and is used by the policies.
+
+## Resolved Decisions
+
+- Roles: `employee` (default), `agent`, `admin`.
+- Profile creation: the `on_auth_user_created` trigger creates a profile with role `employee`. Only server-side code or SQL promotes roles.
+- Retention: deleting a profile is blocked while it has requested tickets (`on delete restrict`). Assignee and audit-log actor references become null, so audit history is kept. Conversations cascade with their owner.
+- `resolved_at` is set by trigger the first time a ticket reaches `resolved`/`closed`, and cleared if it is reopened.
 - Embedding model and dimension: resolved as `gemini-embedding-001` with `EMBEDDING_DIMENSIONS=1536`; see [Gemini API Configuration](08-gemini-configuration.md).
 
 ---
