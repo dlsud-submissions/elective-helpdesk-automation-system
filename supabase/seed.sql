@@ -5,6 +5,32 @@
 -- It creates sign-in accounts with a known password, so only run it against a
 -- development project, never production.
 
+-- Fail fast with a clear message when the target is missing migrations.
+do $$
+declare
+  missing text;
+begin
+  select string_agg(name, ', ') into missing
+  from (
+    values
+      ('public.tickets', to_regclass('public.tickets') is not null),
+      ('public.conversations', to_regclass('public.conversations') is not null),
+      ('public.messages', to_regclass('public.messages') is not null),
+      ('public.audit_logs', to_regclass('public.audit_logs') is not null),
+      ('knowledge_chunks.chunk_ordinal', exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'knowledge_chunks'
+          and column_name = 'chunk_ordinal'))
+  ) as required(name, present)
+  where not present;
+
+  if missing is not null then
+    raise exception 'Seed aborted: migrations are not applied (missing %). Run `npm run supabase:push` first, then re-run the seed.', missing;
+  end if;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Fictional accounts (password for all: Password123!)
 --   dana.cruz@example.test  employee
