@@ -63,7 +63,7 @@ The backend must reject any action not listed above. If a model proposes an unsu
 
 ## API contract note
 
-The detailed request and response contract for the allowlisted actions is recorded in [API specifications](resources/api-specifications/allowlisted-actions.md). That specification is intentionally documentation-only for Sprint 1 and does not create executable integration handlers.
+The detailed request and response contracts for the completed Sprint 2 backend and the upcoming Sprint 3 UI/workflow phase are recorded in the active API specification pack under [API specifications](../api-specifications/README.md). The allowlisted action contract in [allowlisted-actions.md](../api-specifications/allowlisted-actions.md) is the authoritative validation baseline for backend execution.
 
 ---
 
