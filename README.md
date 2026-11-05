@@ -25,16 +25,18 @@ AI-HAS is a web-based IT helpdesk prototype that combines Retrieval-Augmented Ge
 
 ### Local setup
 
-Requires Node 22+, Docker, and the Supabase CLI.
+Requires Node 22+ and Docker. The Supabase CLI is installed as a dev dependency.
 
 ```bash
 npm install
 npm run env:create            # creates client/.env and server/.env from the examples
-supabase start                # prints the local API URL, anon key, and service_role key
+npm run supabase:start        # prints the local API URL, anon key, and service_role key
 npm run supabase:reset:local  # applies supabase/migrations/ in order, then supabase/seed.sql
 ```
 
-Copy the values printed by `supabase start` into the untracked env files:
+To work with the hosted project instead, run `npm run supabase:login` once, then `npm run supabase:link`. The link script reads the project ref from `SUPABASE_URL` in `server/.env`. See [Supabase CLI](docs/deliverables/development-workflow.md#supabase-cli) for every script and its target.
+
+Copy the values printed by `npm run supabase:start` into the untracked env files:
 
 - `server/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (server only, never in the client)
 - `client/.env`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL=http://localhost:3001`

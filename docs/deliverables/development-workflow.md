@@ -45,12 +45,29 @@ The root `package.json` defines the initial command contract for the team:
 - `npm run test:client:watch`
 - `npm run test:server:watch`
 - `npm run verify:all`
-- `npm run supabase:link`
-- `npm run supabase:push`
-- `npm run supabase:reset`
-- `npm run supabase:seed`
+- `npm run test:e2e`
 
 The corresponding VS Code tasks in `.vscode/tasks.json` delegate to these scripts so the team has one canonical command surface.
+
+### Supabase CLI
+
+The Supabase CLI (v3) is a pinned dev dependency, so a global install isn't needed. In CLI v3, `db push`, `db reset`, and `db query` target the **local** database unless `--remote` is passed. The scripts below make the target explicit.
+
+| Script                         | Target | What it does                                                                                       |
+| :----------------------------- | :----- | :------------------------------------------------------------------------------------------------- |
+| `npm run supabase:login`       | hosted | Sign in to the CLI (browser flow). Run once per machine.                                           |
+| `npm run supabase:logout`      | hosted | Remove the CLI access token from this machine.                                                     |
+| `npm run supabase:link`        | hosted | Link to the hosted project (see below).                                                            |
+| `npm run supabase:push:dry`    | hosted | List migrations that would be applied to the linked project.                                       |
+| `npm run supabase:push`        | hosted | Apply pending migrations to the linked project (asks for confirmation).                            |
+| `npm run supabase:reset`       | hosted | **Destructive:** wipe and rebuild the linked database from migrations. Never seeds.                |
+| `npm run supabase:start`       | local  | Start the local stack (requires Docker). `supabase:stop` and `supabase:status` are also available. |
+| `npm run supabase:reset:local` | local  | Rebuild the local database from migrations plus `supabase/seed.sql`.                               |
+| `npm run supabase:seed`        | local  | Re-run `supabase/seed.sql` against the local database (idempotent).                                |
+
+`supabase:link` needs the **project ref**: the 20-lowercase-letter Project ID from Dashboard → Project Settings → General, which is also the subdomain of `https://<ref>.supabase.co`. It is not the project name. The script reads the ref from `npm run supabase:link -- <ref>`, then `SUPABASE_PROJECT_REF`, then `SUPABASE_URL` in `server/.env`, and it rejects values that are not refs.
+
+The seed creates fictional accounts with a known password, so it is only ever run locally. The remote reset uses `--no-seed`.
 
 ## Docker and Compose
 

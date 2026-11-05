@@ -204,14 +204,90 @@
       "presentation": { "panel": "shared", "reveal": "always" }
     },
     {
+      "label": "🔑 Supabase: Login",
+      "type": "npm",
+      "script": "supabase:login",
+      "path": ".",
+      "detail": "Sign in to the Supabase CLI (opens a browser). Run once per machine before linking.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always",
+        "focus": true
+      }
+    },
+    {
+      "label": "🚪 Supabase: Logout",
+      "type": "npm",
+      "script": "supabase:logout",
+      "path": ".",
+      "detail": "Remove the Supabase CLI access token from this machine.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always",
+        "focus": true
+      }
+    },
+    {
       "label": "🔗 Supabase: Link Project",
       "type": "npm",
       "script": "supabase:link",
+      "path": ".",
+      "detail": "Link to the hosted project; the ref is read from SUPABASE_URL in server/.env. Requires login.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always",
+        "focus": true
+      }
+    },
+    {
+      "label": "▶️ Supabase: Start Local Stack",
+      "type": "npm",
+      "script": "supabase:start",
+      "path": ".",
+      "detail": "Start the local Supabase stack (requires Docker).",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "⏹️ Supabase: Stop Local Stack",
+      "type": "npm",
+      "script": "supabase:stop",
       "path": ".",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
         "reveal": "always"
+      }
+    },
+    {
+      "label": "ℹ️ Supabase: Local Status",
+      "type": "npm",
+      "script": "supabase:status",
+      "path": ".",
+      "detail": "Show local URLs and keys to copy into client/.env and server/.env.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🔍 Supabase: Push Migrations (dry run)",
+      "type": "npm",
+      "script": "supabase:push:dry",
+      "path": ".",
+      "detail": "List migrations that would be applied to the linked hosted project.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always",
+        "focus": true
       }
     },
     {
@@ -219,10 +295,12 @@
       "type": "npm",
       "script": "supabase:push",
       "path": ".",
+      "detail": "Apply pending migrations to the linked hosted project (asks for confirmation).",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
-        "reveal": "always"
+        "reveal": "always",
+        "focus": true
       }
     },
     {
@@ -230,11 +308,12 @@
       "type": "npm",
       "script": "supabase:reset",
       "path": ".",
-      "detail": "Reset the configured remote Supabase project state.",
+      "detail": "DESTRUCTIVE: wipes the linked hosted database and reapplies migrations, without the fictional seed.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
-        "reveal": "always"
+        "reveal": "always",
+        "focus": true
       }
     },
     {
@@ -242,7 +321,7 @@
       "type": "npm",
       "script": "supabase:reset:local",
       "path": ".",
-      "detail": "Local-only reset for a local Supabase stack; use the remote reset task for deployed environments.",
+      "detail": "Rebuild the local database from migrations and supabase/seed.sql.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
@@ -250,10 +329,11 @@
       }
     },
     {
-      "label": "🌱 Supabase: Seed",
+      "label": "🌱 Supabase: Seed Local DB",
       "type": "npm",
       "script": "supabase:seed",
       "path": ".",
+      "detail": "Re-run supabase/seed.sql against the local database (safe to repeat).",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
