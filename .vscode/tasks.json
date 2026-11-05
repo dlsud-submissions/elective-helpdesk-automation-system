@@ -329,11 +329,24 @@
       }
     },
     {
-      "label": "🌱 Supabase: Seed Local DB",
+      "label": "🌱 Supabase: Seed Linked DB",
       "type": "npm",
       "script": "supabase:seed",
       "path": ".",
-      "detail": "Re-run supabase/seed.sql against the local database (safe to repeat).",
+      "detail": "Run supabase/seed.sql against the linked hosted project (asks for confirmation; safe to repeat). Push migrations first.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always",
+        "focus": true
+      }
+    },
+    {
+      "label": "🌱 Supabase: Seed Local DB",
+      "type": "npm",
+      "script": "supabase:seed:local",
+      "path": ".",
+      "detail": "Run supabase/seed.sql against the local stack (requires supabase start).",
       "presentation": {
         "group": "supabase",
         "panel": "shared",

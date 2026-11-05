@@ -1,7 +1,9 @@
--- Seed data for local development and regression testing.
--- Fictional content only. Run with `npm run supabase:reset:local`.
--- Never run this seed against a shared or production project: it creates
--- sign-in accounts with a known password.
+-- Seed data for development and regression testing. Fictional content only.
+-- Linked dev project: `npm run supabase:seed` (after `npm run supabase:push`).
+-- Local stack: `npm run supabase:reset:local` or `npm run supabase:seed:local`.
+-- Idempotent: safe to run more than once.
+-- It creates sign-in accounts with a known password, so only run it against a
+-- development project, never production.
 
 -- ---------------------------------------------------------------------------
 -- Fictional accounts (password for all: Password123!)

@@ -44,7 +44,7 @@
     "supabase:push": "supabase db push --remote",
     "supabase:reset": "supabase db reset --remote --no-seed",
     "supabase:reset:local": "supabase db reset",
-    "supabase:seed": "supabase db query --file supabase/seed.sql",
+    "supabase:seed": "supabase db query --remote --file supabase/seed.sql",
     "verify:repo": "node scripts/verify-repo.mjs",
     "verify:all": "npm run verify:repo && npm run typecheck && npm run test && npm run lint:check && npm run format:check && npm run build",
     "test:e2e": "playwright test",
@@ -53,7 +53,8 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
-    "supabase:push:dry": "supabase db push --remote --dry-run"
+    "supabase:push:dry": "supabase db push --remote --dry-run",
+    "supabase:seed:local": "supabase db query --file supabase/seed.sql"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
