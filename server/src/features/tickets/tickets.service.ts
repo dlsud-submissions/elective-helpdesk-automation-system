@@ -1,18 +1,24 @@
-import { randomUUID } from 'node:crypto';
+import {
+  badRequest,
+  forbidden,
+  HttpError,
+  notFound,
+} from '../../shared/http/errors.js';
 import type {
   AuditLogEntry,
+  NewTicket,
   RequestContext,
   TicketMutation,
+  TicketPatch,
   TicketPriority,
+  TicketProfileLookup,
   TicketRecord,
-  TicketRequest,
+  TicketRepository,
   TicketStatus,
+  ValidatedTicketRequest,
 } from './tickets.types.js';
 
-const ticketStore = new Map<string, TicketRecord>();
-const auditLog: AuditLogEntry[] = [];
-
-const allowedStatuses: TicketStatus[] = [
+export const allowedStatuses: TicketStatus[] = [
   'new',
   'open',
   'in_progress',
@@ -21,7 +27,7 @@ const allowedStatuses: TicketStatus[] = [
   'closed',
 ];
 
-const validTransitions: Record<TicketStatus, TicketStatus[]> = {
+export const validTransitions: Record<TicketStatus, TicketStatus[]> = {
   new: ['open', 'in_progress'],
   open: ['in_progress', 'pending', 'resolved'],
   in_progress: ['pending', 'resolved'],
@@ -30,34 +36,12 @@ const validTransitions: Record<TicketStatus, TicketStatus[]> = {
   closed: [],
 };
 
-export function getAllTickets(): TicketRecord[] {
-  return [...ticketStore.values()].sort(
-    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
-  );
-}
+const isStaff = (context: RequestContext) =>
+  context.role === 'agent' || context.role === 'admin';
 
-export function getTicketById(ticketId: string): TicketRecord | undefined {
-  return ticketStore.get(ticketId);
-}
-
-export function getAuditEntries(ticketId: string): AuditLogEntry[] {
-  return auditLog.filter((entry) => entry.ticketId === ticketId);
-}
-
-export function resolveRequestContext(
-  requestMetadata: Partial<RequestContext> | undefined
-): RequestContext {
-  return {
-    userId: requestMetadata?.userId ?? 'local-user',
-    role: requestMetadata?.role ?? 'employee',
-    displayName: requestMetadata?.displayName ?? 'Employee User',
-  };
-}
-
-export function normalizePriority(
-  priority: string | undefined
-): TicketPriority {
-  const value = (priority ?? 'medium').toLowerCase();
+export function normalizePriority(priority: unknown): TicketPriority {
+  if (priority === undefined || priority === null) return 'medium';
+  const value = typeof priority === 'string' ? priority.toLowerCase() : '';
 
   if (
     value === 'low' ||
@@ -68,144 +52,212 @@ export function normalizePriority(
     return value;
   }
 
-  throw new Error(
+  throw badRequest(
     'Ticket priority must be one of low, medium, high, or urgent.'
   );
 }
 
-export function validateTicketRequest(input: TicketRequest): TicketRequest {
-  const title = typeof input.title === 'string' ? input.title.trim() : '';
+export function validateTicketRequest(input: unknown): ValidatedTicketRequest {
+  const body = (input ?? {}) as Record<string, unknown>;
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
   const description =
-    typeof input.description === 'string' ? input.description.trim() : '';
+    typeof body.description === 'string' ? body.description.trim() : '';
 
-  if (!title) {
-    throw new Error('Ticket title is required.');
-  }
-
+  if (!title) throw badRequest('Ticket title is required.');
   if (title.length > 120) {
-    throw new Error('Ticket title must be 120 characters or fewer.');
+    throw badRequest('Ticket title must be 120 characters or fewer.');
   }
-
-  if (!description) {
-    throw new Error('Ticket description is required.');
-  }
-
+  if (!description) throw badRequest('Ticket description is required.');
   if (description.length > 5000) {
-    throw new Error('Ticket description must be 5000 characters or fewer.');
+    throw badRequest('Ticket description must be 5000 characters or fewer.');
   }
-
-  if (input.category !== undefined && typeof input.category !== 'string') {
-    throw new Error('Ticket category must be a string when provided.');
+  if (body.category !== undefined && typeof body.category !== 'string') {
+    throw badRequest('Ticket category must be a string when provided.');
   }
-
-  const normalizedPriority = normalizePriority(input.priority);
+  const category =
+    (typeof body.category === 'string' && body.category.trim()) || 'general';
+  if (category.length > 60) {
+    throw badRequest('Ticket category must be 60 characters or fewer.');
+  }
 
   return {
     title,
     description,
-    category: input.category?.trim() || 'general',
-    priority: normalizedPriority,
-    requesterId: input.requesterId ?? '',
-    requesterName: input.requesterName ?? '',
+    category,
+    priority: normalizePriority(body.priority),
   };
 }
 
-export function createTicket(
-  request: TicketRequest,
-  context: Partial<RequestContext> | undefined
-): TicketRecord {
-  const validated = validateTicketRequest(request);
-  const resolvedContext = resolveRequestContext(context);
-
-  const now = new Date().toISOString();
-  const ticket: TicketRecord = {
-    id: randomUUID(),
-    title: validated.title,
-    description: validated.description,
-    category: validated.category ?? 'general',
-    priority: validated.priority ?? 'medium',
-    status: 'new',
-    requesterId: resolvedContext.userId,
-    requesterName: resolvedContext.displayName,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  ticketStore.set(ticket.id, ticket);
-
-  const event: AuditLogEntry = {
-    id: randomUUID(),
-    ticketId: ticket.id,
-    action: 'created',
-    actorId: resolvedContext.userId,
-    createdAt: now,
-    summary: `Ticket created for ${ticket.requesterName}.`,
-  };
-
-  auditLog.push(event);
-
-  return ticket;
+export function normalizeStatus(status: unknown): TicketStatus {
+  const value =
+    typeof status === 'string' ? (status.toLowerCase() as TicketStatus) : '';
+  if (!allowedStatuses.includes(value as TicketStatus)) {
+    throw badRequest(
+      `Ticket status must be one of ${allowedStatuses.join(', ')}.`
+    );
+  }
+  return value as TicketStatus;
 }
 
-export function updateTicket(
-  ticketId: string,
-  mutation: TicketMutation,
-  context: Partial<RequestContext> | undefined
-): TicketRecord {
-  const ticket = ticketStore.get(ticketId);
+export function assertTransition(from: TicketStatus, to: TicketStatus): void {
+  if (from !== to && !validTransitions[from].includes(to)) {
+    throw badRequest(`Status transition from ${from} to ${to} is not allowed.`);
+  }
+}
 
-  if (!ticket) {
-    throw new Error('Ticket not found.');
+export class TicketService {
+  constructor(
+    private readonly repository: TicketRepository,
+    private readonly profiles: TicketProfileLookup
+  ) {}
+
+  /** Requester identity always comes from the verified auth context. */
+  async create(
+    input: unknown,
+    context: RequestContext,
+    extras: Pick<
+      NewTicket,
+      'isEscalated' | 'conversationId' | 'escalationSummary'
+    > = {}
+  ): Promise<TicketRecord> {
+    const validated = validateTicketRequest(input);
+    const ticket = await this.repository.create({
+      ...validated,
+      ...extras,
+      requesterId: context.userId,
+    });
+    await this.repository.recordAudit({
+      ticketId: ticket.id,
+      action: 'ticket.created',
+      actorId: context.userId,
+      outcome: 'success',
+      summary: `Ticket ${ticket.reference} created.`,
+    });
+    return ticket;
   }
 
-  const resolvedContext = resolveRequestContext(context);
-  const beforeStatus = ticket.status;
+  /** Employees only see their own tickets; agents/admins see the full queue. */
+  async list(context: RequestContext): Promise<TicketRecord[]> {
+    return this.repository.list(
+      isStaff(context) ? {} : { requesterId: context.userId }
+    );
+  }
 
-  if (mutation.status) {
-    const normalizedStatus = mutation.status.toLowerCase() as TicketStatus;
+  async get(
+    ticketId: string,
+    context: RequestContext
+  ): Promise<{ ticket: TicketRecord; audit: AuditLogEntry[] }> {
+    const ticket = await this.repository.findById(ticketId);
+    // Return 404 rather than 403 so ticket IDs cannot be probed.
+    if (
+      !ticket ||
+      (!isStaff(context) && ticket.requesterId !== context.userId)
+    ) {
+      throw notFound('Ticket not found.');
+    }
+    const audit = isStaff(context)
+      ? await this.repository.listAudit(ticket.id)
+      : [];
+    return { ticket, audit };
+  }
 
-    if (!allowedStatuses.includes(normalizedStatus)) {
-      throw new Error(
-        `Ticket status must be one of ${allowedStatuses.join(', ')}.`
-      );
+  async update(
+    ticketId: string,
+    input: unknown,
+    context: RequestContext
+  ): Promise<TicketRecord> {
+    if (!isStaff(context)) {
+      throw forbidden("You don't have permission to update this ticket.");
     }
 
-    if (!validTransitions[beforeStatus].includes(normalizedStatus)) {
-      throw new Error(
-        `Status transition from ${beforeStatus} to ${normalizedStatus} is not allowed.`
-      );
+    const mutation = (input ?? {}) as TicketMutation;
+    const ticket = await this.repository.findById(ticketId);
+    if (!ticket) throw notFound('Ticket not found.');
+
+    if (
+      mutation.expectedUpdatedAt !== undefined &&
+      typeof mutation.expectedUpdatedAt !== 'string'
+    ) {
+      throw badRequest('expectedUpdatedAt must be a timestamp string.');
+    }
+    if (
+      mutation.expectedUpdatedAt &&
+      mutation.expectedUpdatedAt !== ticket.updatedAt
+    ) {
+      throw conflict();
     }
 
-    ticket.status = normalizedStatus;
+    const patch: TicketPatch = {};
+    const changes: string[] = [];
+
+    if (mutation.status !== undefined) {
+      const status = normalizeStatus(mutation.status);
+      assertTransition(ticket.status, status);
+      if (status !== ticket.status) {
+        patch.status = status;
+        changes.push(`status ${ticket.status} → ${status}`);
+      }
+    }
+
+    if (mutation.assigneeId !== undefined) {
+      const assigneeId = mutation.assigneeId;
+      if (assigneeId !== null && typeof assigneeId !== 'string') {
+        throw badRequest('assigneeId must be a profile id or null.');
+      }
+      if (assigneeId) {
+        const assignee = await this.profiles.findById(assigneeId);
+        if (!assignee || assignee.role === 'employee') {
+          throw badRequest(
+            'Tickets can only be assigned to an agent or admin.'
+          );
+        }
+      }
+      if (assigneeId !== ticket.assignedTo) {
+        patch.assignedTo = assigneeId;
+        changes.push(assigneeId ? 'assignee updated' : 'unassigned');
+      }
+    }
+
+    if (mutation.notes !== undefined) {
+      if (typeof mutation.notes !== 'string') {
+        throw badRequest('notes must be a string.');
+      }
+      const notes = mutation.notes.trim();
+      if (notes) {
+        const description = `${ticket.description}\n\nUpdate: ${notes}`;
+        if (description.length > 5000) {
+          throw badRequest('Ticket description would exceed 5000 characters.');
+        }
+        patch.description = description;
+        changes.push('note added');
+      }
+    }
+
+    if (!changes.length) return ticket;
+
+    const updated = await this.repository.update(
+      ticket.id,
+      patch,
+      ticket.updatedAt
+    );
+    if (!updated) throw conflict();
+
+    await this.repository.recordAudit({
+      ticketId: ticket.id,
+      action: patch.status ? 'ticket.status_updated' : 'ticket.updated',
+      actorId: context.userId,
+      outcome: 'success',
+      summary: `Ticket ${ticket.reference}: ${changes.join(', ')}.`,
+    });
+
+    return updated;
   }
-
-  if (mutation.notes && mutation.notes.trim()) {
-    ticket.description = `${ticket.description}\n\nUpdate: ${mutation.notes.trim()}`;
-  }
-
-  if (mutation.assigneeId) {
-    ticket.requesterId = mutation.assigneeId;
-  }
-
-  ticket.updatedAt = new Date().toISOString();
-
-  auditLog.push({
-    id: randomUUID(),
-    ticketId: ticket.id,
-    action: mutation.status ? 'status_updated' : 'updated',
-    beforeStatus,
-    afterStatus: ticket.status,
-    actorId: resolvedContext.userId,
-    createdAt: ticket.updatedAt,
-    summary: mutation.status
-      ? `Status changed from ${beforeStatus} to ${ticket.status}.`
-      : 'Ticket updated.',
-  });
-
-  return ticket;
 }
 
-export function resetTicketState(): void {
-  ticketStore.clear();
-  auditLog.length = 0;
+function conflict(): HttpError {
+  return new HttpError(
+    409,
+    'conflict',
+    'This ticket was updated by someone else. Reload to see changes.'
+  );
 }

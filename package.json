@@ -46,9 +46,11 @@
     "supabase:reset:local": "supabase db reset --debug",
     "supabase:seed": "supabase db seed",
     "verify:repo": "node scripts/verify-repo.mjs",
-    "verify:all": "npm run verify:repo && npm run typecheck && npm run test && npm run lint:check && npm run format:check && npm run build"
+    "verify:all": "npm run verify:repo && npm run typecheck && npm run test && npm run lint:check && npm run format:check && npm run build",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "concurrently": "^9.1.2",
     "eslint": "^9.28.0",
     "globals": "^16.2.0",
