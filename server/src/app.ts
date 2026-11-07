@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express, { type Express } from 'express';
 import { getAllowedOrigins } from './config/cors.js';
+import { actionRouter } from './features/actions/index.js';
 import {
   AnalyticsService,
   createAnalyticsRouter,
@@ -81,6 +82,34 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
     createChatRouter({ requireAuth, conversations: conversationService })
   );
   app.use(createAnalyticsRouter({ requireAuth, analytics: analyticsService }));
+  app.use(actionRouter);
+
+  app.use(
+    (
+      error: unknown,
+      _request: express.Request,
+      response: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (response.headersSent) {
+        next(error);
+        return;
+      }
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'type' in error &&
+        error.type === 'entity.too.large'
+      ) {
+        response.status(413).json({
+          status: 'error',
+          error: 'Request body exceeds the allowed size.',
+        });
+        return;
+      }
+      next(error);
+    }
+  );
 
   app.use('/api', (_request, response) => {
     response.status(404).json({ error: 'Not found.', code: 'not_found' });
