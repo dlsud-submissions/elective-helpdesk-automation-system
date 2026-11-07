@@ -1,3 +1,6 @@
+-- pgvector must exist before knowledge_chunks uses extensions.vector.
+create extension if not exists vector with schema extensions;
+
 -- profiles: one row per signed-up user; role lives here
 create table public.profiles (
 

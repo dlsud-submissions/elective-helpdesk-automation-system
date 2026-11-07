@@ -40,19 +40,29 @@
     "format:check": "prettier --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,css,html,json,md,yaml,yml}\"",
     "format:fix": "npm run format",
     "lint:check": "npm run lint",
-    "supabase:link": "node -e \"console.log('Pending Sprint 2: link Supabase project and local CLI config.');\"",
-    "supabase:push": "node -e \"console.log('Pending Sprint 2: push migrations to remote Supabase project.');\"",
-    "supabase:reset": "node -e \"console.log('Pending Sprint 2: reset the remote Supabase project state.');\"",
-    "supabase:reset:local": "node -e \"console.log('Pending Sprint 2: reset local Supabase stack only.');\"",
-    "supabase:seed": "node -e \"console.log('Pending Sprint 2: seed local development data.');\"",
+    "supabase:link": "supabase link",
+    "supabase:push": "supabase db push --remote",
+    "supabase:reset": "supabase db reset --remote --no-seed",
+    "supabase:reset:local": "supabase db reset",
+    "supabase:seed": "supabase db query --remote --file supabase/seed.sql",
     "verify:repo": "node scripts/verify-repo.mjs",
-    "verify:all": "npm run verify:repo && npm run typecheck && npm run test && npm run lint:check && npm run format:check && npm run build"
+    "verify:all": "npm run verify:repo && npm run typecheck && npm run test && npm run lint:check && npm run format:check && npm run build",
+    "test:e2e": "playwright test",
+    "supabase:login": "supabase login",
+    "supabase:logout": "supabase logout",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:push:dry": "supabase db push --remote --dry-run",
+    "supabase:seed:local": "supabase db query --file supabase/seed.sql"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "concurrently": "^9.1.2",
     "eslint": "^9.28.0",
     "globals": "^16.2.0",
     "prettier": "^3.5.3",
+    "supabase": "^3.0.0",
     "typescript-eslint": "^8.34.1"
   }
 }
