@@ -41,8 +41,6 @@ export type AppDependencies = {
   answerTimeoutMs?: number;
 };
 
-app.use(cors({ origin: getAllowedOrigins() }));
-app.use(express.json({ limit: '16kb' }));
 /** Builds the API. Tests inject fakes; production uses Supabase adapters. */
 export function createApp(overrides: Partial<AppDependencies> = {}): Express {
   const profiles = overrides.profiles ?? new SupabaseProfileDirectory();
@@ -67,44 +65,6 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
     listAll: () => deps.tickets.list({}),
   });
 
-app.use(helloRouter);
-app.use(actionRouter);
-
-app.use(
-  (
-    error: unknown,
-    _request: express.Request,
-    response: express.Response,
-    next: express.NextFunction
-  ) => {
-    if (response.headersSent) {
-      next(error);
-      return;
-    }
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'type' in error &&
-      error.type === 'entity.too.large'
-    ) {
-      response.status(413).json({
-        status: 'error',
-        error: 'Request body exceeds the allowed size.',
-      });
-      return;
-    }
-    if (error instanceof SyntaxError) {
-      response
-        .status(400)
-        .json({ status: 'error', error: 'Request body must be valid JSON.' });
-      return;
-    }
-    console.error('Unhandled API request error.', error);
-    response
-      .status(500)
-      .json({ status: 'error', error: 'The request could not be processed.' });
-  }
-);
   const app = express();
   app.disable('x-powered-by');
   app.use(cors({ origin: getAllowedOrigins() }));
@@ -122,6 +82,34 @@ app.use(
     createChatRouter({ requireAuth, conversations: conversationService })
   );
   app.use(createAnalyticsRouter({ requireAuth, analytics: analyticsService }));
+  app.use(actionRouter);
+
+  app.use(
+    (
+      error: unknown,
+      _request: express.Request,
+      response: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (response.headersSent) {
+        next(error);
+        return;
+      }
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'type' in error &&
+        error.type === 'entity.too.large'
+      ) {
+        response.status(413).json({
+          status: 'error',
+          error: 'Request body exceeds the allowed size.',
+        });
+        return;
+      }
+      next(error);
+    }
+  );
 
   app.use('/api', (_request, response) => {
     response.status(404).json({ error: 'Not found.', code: 'not_found' });
