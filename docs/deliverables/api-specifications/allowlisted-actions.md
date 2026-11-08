@@ -1,6 +1,6 @@
 # Allowlisted Action Contract
 
-> Status: Sprint 1 planning document only. The backend is documented here but not implemented in source code during this sprint.
+> Status: Accepted Sprint 2 contract for Sprint 3 implementation. This is the approved backend validation baseline for action proposals, not a placeholder design note.
 
 ## Purpose
 
