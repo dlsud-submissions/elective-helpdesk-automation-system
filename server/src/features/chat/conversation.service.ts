@@ -133,7 +133,7 @@ export class ConversationService {
       );
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Answer generation failed:', error);
+      console.error('Answer generation failed.');
       throw new HttpError(
         503,
         'answer_unavailable',

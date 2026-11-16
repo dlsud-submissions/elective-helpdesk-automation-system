@@ -35,7 +35,7 @@ export function generateGroundedAnswer(
 
   const rankedSources = [...sources]
     .sort((left, right) => right.similarity - left.similarity)
-    .slice(0, 3);
+    .slice(0, 1);
 
   const answerBuilder = rankedSources
     .map((source) => `${source.title}: ${source.content.slice(0, 180).trim()}`)
