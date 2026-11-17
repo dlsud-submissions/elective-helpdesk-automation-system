@@ -26,15 +26,38 @@ export type ChatAnswer = {
 
 function rankKnowledgeForQuestion(question: string): RetrievalSource[] {
   const normalized = question.toLowerCase();
+  const queryTerms = normalized.match(/[a-z0-9]+/g) ?? [];
+  const stopWords = new Set([
+    'a',
+    'after',
+    'do',
+    'for',
+    'how',
+    'i',
+    'in',
+    'is',
+    'my',
+    'of',
+    'the',
+    'to',
+    'what',
+  ]);
+  const meaningfulTerms = queryTerms.filter(
+    (term) => term.length > 2 && !stopWords.has(term)
+  );
 
   return knowledgeArticles
     .filter((article) => article.isPublished)
     .map((article) => {
-      const articleContent = `${article.title} ${article.body}`.toLowerCase();
-      const matches = articleContent
-        .split(/\s+/)
-        .filter((term) => normalized.includes(term)).length;
-      const similarity = matches > 0 ? Math.min(0.95, 0.35 + matches / 20) : 0;
+      const articleTerms = new Set(
+        `${article.title} ${article.body}`.toLowerCase().match(/[a-z0-9]+/g) ??
+          []
+      );
+      const matches = meaningfulTerms.filter((term) =>
+        articleTerms.has(term)
+      ).length;
+      const similarity =
+        meaningfulTerms.length > 0 ? matches / meaningfulTerms.length : 0;
       return {
         id: article.id,
         title: article.title,
@@ -43,7 +66,7 @@ function rankKnowledgeForQuestion(question: string): RetrievalSource[] {
         similarity,
       };
     })
-    .filter((result) => result.similarity > 0.2)
+    .filter((result) => result.similarity >= 0.25)
     .sort((left, right) => right.similarity - left.similarity);
 }
 
