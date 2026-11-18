@@ -92,11 +92,12 @@ export class SupabaseActionRepository implements ActionRepository {
       p_conversation_id: input.conversationId ?? null,
       p_idempotency_key: input.idempotencyKey,
     });
-    const status = isRecord(result) && result.status === 'succeeded'
-      ? 'success'
-      : isRecord(result)
-        ? result.status
-        : undefined;
+    const status =
+      isRecord(result) && result.status === 'succeeded'
+        ? 'success'
+        : isRecord(result)
+          ? result.status
+          : undefined;
     if (
       !isRecord(result) ||
       typeof result.runId !== 'string' ||

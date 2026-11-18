@@ -79,9 +79,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
   app.use(helloRouter);
   app.use(createAuthRouter({ requireAuth, profiles: deps.profiles }));
   app.use(createTicketRouter({ requireAuth, tickets: ticketService }));
-  app.use(
-    createKnowledgeRouter({ requireAuth, service: overrides.knowledge })
-  );
+  app.use(createKnowledgeRouter({ requireAuth, service: overrides.knowledge }));
   app.use(
     createChatRouter({ requireAuth, conversations: conversationService })
   );

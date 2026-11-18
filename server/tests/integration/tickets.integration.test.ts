@@ -89,9 +89,11 @@ describe('ticket endpoints', () => {
       .set('Authorization', bearer('dana'));
     expect(list.body.tickets).toHaveLength(1);
     expect(
-      (await request(app)
-        .get(`/api/tickets/${first.body.ticket.id}`)
-        .set('Authorization', bearer('lee'))).body.audit
+      (
+        await request(app)
+          .get(`/api/tickets/${first.body.ticket.id}`)
+          .set('Authorization', bearer('lee'))
+      ).body.audit
     ).toHaveLength(1);
   });
 
@@ -117,9 +119,13 @@ describe('ticket endpoints', () => {
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('validation_error');
     expect(response.body.error).toContain('unexpected field');
-    expect((await request(app)
-      .get(`/api/tickets/${ticket.id}`)
-      .set('Authorization', bearer('lee'))).body.ticket.status).toBe('new');
+    expect(
+      (
+        await request(app)
+          .get(`/api/tickets/${ticket.id}`)
+          .set('Authorization', bearer('lee'))
+      ).body.ticket.status
+    ).toBe('new');
   });
 
   it('scopes employee reads to their own tickets', async () => {

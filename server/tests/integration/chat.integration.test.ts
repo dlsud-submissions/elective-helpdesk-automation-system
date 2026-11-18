@@ -138,13 +138,20 @@ describe('chat messages and conversation history', () => {
     const malformedId = await request(app)
       .post('/api/chat/messages')
       .set('Authorization', bearer('dana'))
-      .send({ content: 'How do I reset my password?', conversationId: 'not-a-uuid' });
+      .send({
+        content: 'How do I reset my password?',
+        conversationId: 'not-a-uuid',
+      });
 
     expect(unexpected.status).toBe(400);
     expect(unexpected.body.code).toBe('validation_error');
     expect(malformedId.status).toBe(400);
     expect(malformedId.body.code).toBe('validation_error');
-    expect(await conversations.listByRequester('11111111-1111-4111-8111-111111111111')).toEqual([]);
+    expect(
+      await conversations.listByRequester(
+        '11111111-1111-4111-8111-111111111111'
+      )
+    ).toEqual([]);
   });
 
   it('returns 504 on answer timeout and stores nothing', async () => {
