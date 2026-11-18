@@ -92,15 +92,20 @@ export class SupabaseActionRepository implements ActionRepository {
       p_conversation_id: input.conversationId ?? null,
       p_idempotency_key: input.idempotencyKey,
     });
+    const status = isRecord(result) && result.status === 'succeeded'
+      ? 'success'
+      : isRecord(result)
+        ? result.status
+        : undefined;
     if (
       !isRecord(result) ||
       typeof result.runId !== 'string' ||
-      typeof result.status !== 'string' ||
-      !['success', 'failed'].includes(result.status)
+      typeof status !== 'string' ||
+      !['success', 'failed'].includes(status)
     ) {
       throw new Error('Supabase returned an invalid simulation result.');
     }
-    return { runId: result.runId, status: result.status };
+    return { runId: result.runId, status };
   }
 
   private async callRpc(

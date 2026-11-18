@@ -188,6 +188,30 @@ describe('apiFetch', () => {
     });
   });
 
+  it('sends an idempotency key with the ticket create request', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ ticket: { id: 'ticket-1' } }),
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    await apiFetch('/api/tickets', {
+      method: 'POST',
+      body: { title: 'VPN issue' },
+      idempotencyKey: 'ticket-request-1',
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/tickets'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'ticket-request-1',
+        }),
+      })
+    );
+  });
+
   it('reports network failures and timeouts as distinct kinds', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
     await expect(apiFetch('/api/x')).rejects.toMatchObject({ kind: 'network' });

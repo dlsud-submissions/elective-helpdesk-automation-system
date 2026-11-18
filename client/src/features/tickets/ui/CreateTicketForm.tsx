@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { toApiError } from '../../../shared/api/http';
 import { createTicket } from '../api/tickets.api';
 import type { Ticket, TicketPriority } from '../types';
@@ -19,6 +19,7 @@ export function CreateTicketForm({
   onCancel: () => void;
 }) {
   const ids = { title: useId(), description: useId(), priority: useId() };
+  const idempotencyKey = useRef(crypto.randomUUID());
   const [title, setTitle] = useState(initialTitle.slice(0, 120));
   const [description, setDescription] = useState(initialDescription);
   const [priority, setPriority] = useState<TicketPriority>('medium');
@@ -35,11 +36,14 @@ export function CreateTicketForm({
     setError(null);
     try {
       onCreated(
-        await createTicket({
-          title: title.trim(),
-          description: description.trim(),
-          priority,
-        })
+        await createTicket(
+          {
+            title: title.trim(),
+            description: description.trim(),
+            priority,
+          },
+          idempotencyKey.current
+        )
       );
     } catch (requestError) {
       setError(toApiError(requestError).message);
@@ -61,7 +65,10 @@ export function CreateTicketForm({
           id={ids.title}
           value={title}
           maxLength={120}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            idempotencyKey.current = crypto.randomUUID();
+            setTitle(event.target.value);
+          }}
         />
       </div>
       <div className="field">
@@ -71,7 +78,10 @@ export function CreateTicketForm({
           rows={4}
           maxLength={5000}
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          onChange={(event) => {
+            idempotencyKey.current = crypto.randomUUID();
+            setDescription(event.target.value);
+          }}
         />
       </div>
       <div className="field">
@@ -79,9 +89,10 @@ export function CreateTicketForm({
         <select
           id={ids.priority}
           value={priority}
-          onChange={(event) =>
-            setPriority(event.target.value as TicketPriority)
-          }
+          onChange={(event) => {
+            idempotencyKey.current = crypto.randomUUID();
+            setPriority(event.target.value as TicketPriority);
+          }}
         >
           <option value="low">Low</option>
           <option value="medium">Medium</option>

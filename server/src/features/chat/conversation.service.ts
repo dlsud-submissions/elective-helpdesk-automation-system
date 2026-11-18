@@ -11,6 +11,8 @@ import type {
 
 export const MAX_MESSAGE_LENGTH = 2000;
 export const DEFAULT_ANSWER_TIMEOUT_MS = 20_000;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** Produces a grounded answer for a question (S2-06 answer orchestration). */
 export type AnswerProvider = (
@@ -111,15 +113,26 @@ export class ConversationService {
    * the same text without creating duplicate user messages.
    */
   async send(input: unknown, context: AuthContext): Promise<SendMessageResult> {
-    const body = (input ?? {}) as Record<string, unknown>;
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+      throw badRequest('Message request must be an object.');
+    }
+    const body = input as Record<string, unknown>;
+    if (
+      Object.keys(body).some(
+        (key) => !['content', 'conversationId'].includes(key)
+      )
+    ) {
+      throw badRequest('Message request contains an unexpected field.');
+    }
     const content = validateMessageContent(body.content);
 
     if (
       body.conversationId !== undefined &&
       body.conversationId !== null &&
-      typeof body.conversationId !== 'string'
+      (typeof body.conversationId !== 'string' ||
+        !UUID_PATTERN.test(body.conversationId))
     ) {
-      throw badRequest('conversationId must be a string.');
+      throw badRequest('conversationId must be a valid UUID.');
     }
     const existing = body.conversationId
       ? await this.requireOwned(body.conversationId as string, context)

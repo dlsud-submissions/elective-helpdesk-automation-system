@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   badRequest,
   forbidden,
@@ -58,7 +59,21 @@ export function normalizePriority(priority: unknown): TicketPriority {
 }
 
 export function validateTicketRequest(input: unknown): ValidatedTicketRequest {
-  const body = (input ?? {}) as Record<string, unknown>;
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    throw badRequest('Ticket request must be an object.');
+  }
+  const body = input as Record<string, unknown>;
+  const allowedFields = new Set([
+    'title',
+    'description',
+    'category',
+    'priority',
+    'requesterId',
+    'requesterName',
+  ]);
+  if (Object.keys(body).some((field) => !allowedFields.has(field))) {
+    throw badRequest('Ticket request contains an unexpected field.');
+  }
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const description =
     typeof body.description === 'string' ? body.description.trim() : '';
@@ -118,22 +133,25 @@ export class TicketService {
     extras: Pick<
       NewTicket,
       'isEscalated' | 'conversationId' | 'escalationSummary'
-    > = {}
+    > = {},
+    idempotencyKey: string = randomUUID()
   ): Promise<TicketRecord> {
-    const validated = validateTicketRequest(input);
-    const ticket = await this.repository.create({
-      ...validated,
+    const result = await this.repository.create({
+      ...validateTicketRequest(input),
       ...extras,
       requesterId: context.userId,
+      idempotencyKey,
     });
-    await this.repository.recordAudit({
-      ticketId: ticket.id,
-      action: 'ticket.created',
-      actorId: context.userId,
-      outcome: 'success',
-      summary: `Ticket ${ticket.reference} created.`,
-    });
-    return ticket;
+    if (result.created) {
+      await this.repository.recordAudit({
+        ticketId: result.ticket.id,
+        action: 'ticket.created',
+        actorId: context.userId,
+        outcome: 'success',
+        summary: `Ticket ${result.ticket.reference} created.`,
+      });
+    }
+    return result.ticket;
   }
 
   /** Employees only see their own tickets; agents/admins see the full queue. */
@@ -170,7 +188,19 @@ export class TicketService {
       throw forbidden("You don't have permission to update this ticket.");
     }
 
-    const mutation = (input ?? {}) as TicketMutation;
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+      throw badRequest('Ticket update must be an object.');
+    }
+    const mutation = input as TicketMutation;
+    const allowedFields = new Set([
+      'status',
+      'assigneeId',
+      'notes',
+      'expectedUpdatedAt',
+    ]);
+    if (Object.keys(mutation).some((field) => !allowedFields.has(field))) {
+      throw badRequest('Ticket update contains an unexpected field.');
+    }
     const ticket = await this.repository.findById(ticketId);
     if (!ticket) throw notFound('Ticket not found.');
 

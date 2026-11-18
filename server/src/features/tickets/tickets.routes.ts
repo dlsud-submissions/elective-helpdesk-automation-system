@@ -1,10 +1,17 @@
 import { Router, type RequestHandler } from 'express';
-import { handle } from '../../shared/http/errors.js';
+import { badRequest, handle } from '../../shared/http/errors.js';
 import { getAuth, requireRole } from '../auth/index.js';
 import type { TicketService } from './tickets.service.js';
 
 function routeId(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
+function validateIdempotencyKey(value: string | undefined): string {
+  if (!value || value.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(value)) {
+    throw badRequest('A valid Idempotency-Key header is required.');
+  }
+  return value;
 }
 
 export function createTicketRouter(deps: {
@@ -26,7 +33,12 @@ export function createTicketRouter(deps: {
   router.post(
     '/api/tickets',
     handle(async (request, response) => {
-      const ticket = await tickets.create(request.body, getAuth(request));
+      const ticket = await tickets.create(
+        request.body,
+        getAuth(request),
+        {},
+        validateIdempotencyKey(request.header('idempotency-key'))
+      );
       response.status(201).json({ ticket });
     })
   );

@@ -1,21 +1,35 @@
 import type { Request, Response } from 'express';
-import { knowledgeService } from './knowledge.runtime.js';
+import { badRequest, HttpError } from '../../shared/http/errors.js';
+import type { KnowledgeService } from './knowledge.service.js';
 
-export const knowledgeController = {
-  search: async (request: Request, response: Response) => {
-    try {
+const MAX_QUERY_LENGTH = 1000;
+
+export function createKnowledgeController(
+  service: Pick<KnowledgeService, 'search'>
+) {
+  return {
+    search: async (request: Request, response: Response) => {
       const query = request.query.q;
-      if (typeof query !== 'string') {
-        response.status(400).json({ error: 'A query parameter is required.' });
-        return;
+      if (typeof query !== 'string' || !query.trim()) {
+        throw badRequest('A non-empty query parameter is required.');
+      }
+      if (query.trim().length > MAX_QUERY_LENGTH) {
+        throw badRequest(
+          `Search query must be ${MAX_QUERY_LENGTH} characters or fewer.`
+        );
       }
 
-      const results = await knowledgeService.search(query);
-      response.json({ results });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Knowledge search failed.';
-      response.status(503).json({ error: message });
-    }
-  },
-};
+      try {
+        const results = await service.search(query.trim());
+        response.json({ results });
+      } catch {
+        console.error('Knowledge search failed.');
+        throw new HttpError(
+          503,
+          'service_unavailable',
+          'Knowledge search is temporarily unavailable.'
+        );
+      }
+    },
+  };
+}
