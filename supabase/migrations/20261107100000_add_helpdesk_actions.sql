@@ -1,24 +1,20 @@
-create table public.conversations (
-  id uuid primary key default gen_random_uuid(),
-  requester_id uuid not null references public.profiles(id) on delete cascade,
-  created_at timestamptz not null default now()
-);
+alter table public.tickets
+  add column if not exists idempotency_key text;
 
-create table public.tickets (
-  id uuid primary key default gen_random_uuid(),
-  requester_id uuid not null references public.profiles(id) on delete restrict,
-  title text not null check (length(btrim(title)) between 1 and 120),
-  description text not null check (length(btrim(description)) between 1 and 4000),
-  category text not null check (category in ('hardware', 'software', 'network', 'account', 'other')),
-  priority text not null check (priority in ('low', 'medium', 'high')),
-  status text not null default 'open' check (status in ('open', 'escalated')),
-  assigned_to uuid references public.profiles(id) on delete set null,
-  conversation_id uuid references public.conversations(id) on delete set null,
-  idempotency_key text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (requester_id, idempotency_key)
-);
+alter table public.tickets
+  add constraint tickets_requester_idempotency_key_unique
+  unique (requester_id, idempotency_key);
+
+alter table public.automation_runs
+  alter column ticket_id drop not null,
+  add column conversation_id uuid references public.conversations(id) on delete set null,
+  add column actor_id uuid references public.profiles(id) on delete restrict,
+  add column idempotency_key text,
+  add column error_code text;
+
+alter table public.automation_runs
+  add constraint automation_runs_actor_idempotency_key_unique
+  unique (actor_id, idempotency_key);
 
 create table public.ticket_escalations (
   ticket_id uuid primary key references public.tickets(id) on delete cascade,
@@ -29,24 +25,12 @@ create table public.ticket_escalations (
   created_at timestamptz not null default now()
 );
 
-create table public.automation_runs (
-  id uuid primary key default gen_random_uuid(),
-  ticket_id uuid references public.tickets(id) on delete set null,
-  conversation_id uuid references public.conversations(id) on delete set null,
-  actor_id uuid not null references public.profiles(id) on delete restrict,
-  idempotency_key text not null,
-  action_type text not null check (action_type in ('create_ticket', 'escalate_to_human', 'send_test_notification')),
-  status text not null check (status in ('success', 'failed')),
-  result_summary text not null check (length(btrim(result_summary)) between 1 and 500),
-  error_code text,
-  created_at timestamptz not null default now(),
-  unique (actor_id, idempotency_key)
-);
+alter table public.automation_runs
+  drop constraint automation_runs_status_check,
+  add constraint automation_runs_status_check
+    check (status in ('pending', 'succeeded', 'failed'));
 
-alter table public.conversations enable row level security;
-alter table public.tickets enable row level security;
 alter table public.ticket_escalations enable row level security;
-alter table public.automation_runs enable row level security;
 
 create or replace function public.current_profile_role()
 returns text
@@ -140,9 +124,11 @@ begin
   end if;
 
   insert into public.tickets (
-    requester_id, title, description, category, priority, conversation_id, idempotency_key
+    requester_id, title, description, category, priority, status,
+    conversation_id, idempotency_key
   ) values (
-    p_requester_id, p_title, p_description, p_category, p_priority, p_conversation_id, p_idempotency_key
+    p_requester_id, p_title, p_description, p_category, p_priority, 'open',
+    p_conversation_id, p_idempotency_key
   )
   on conflict (requester_id, idempotency_key) do nothing
   returning id, status into v_ticket_id, v_status;
@@ -164,7 +150,7 @@ begin
     ticket_id, conversation_id, actor_id, idempotency_key, action_type, status, result_summary
   ) values (
     v_ticket_id, p_conversation_id, p_requester_id, p_idempotency_key,
-    'create_ticket', 'success', 'Ticket created'
+    'create_ticket', 'succeeded', 'Ticket created'
   );
 
   return jsonb_build_object('ticketId', v_ticket_id, 'status', v_status);
@@ -212,7 +198,7 @@ begin
     from public.ticket_escalations
     where ticket_id = v_ticket_id;
     return jsonb_build_object(
-      'ticketId', v_ticket_id, 'status', v_status, 'queue', v_queue
+      'ticketId', v_ticket_id, 'status', 'escalated', 'queue', v_queue
     );
   end if;
 
@@ -230,10 +216,11 @@ begin
   end if;
 
   insert into public.tickets (
-    requester_id, title, description, category, priority, status, conversation_id, idempotency_key
+    requester_id, title, description, category, priority, status, is_escalated,
+    escalation_summary, conversation_id, idempotency_key
   ) values (
-    p_requester_id, p_title, p_summary, 'other', 'medium', 'escalated',
-    v_conversation_id, p_idempotency_key
+    p_requester_id, p_title, p_summary, 'other', 'medium', 'open', true,
+    p_summary, v_conversation_id, p_idempotency_key
   )
   on conflict (requester_id, idempotency_key) do nothing
   returning id, status into v_ticket_id, v_status;
@@ -252,7 +239,7 @@ begin
     from public.ticket_escalations
     where ticket_id = v_ticket_id;
     return jsonb_build_object(
-      'ticketId', v_ticket_id, 'status', v_status, 'queue', v_queue
+      'ticketId', v_ticket_id, 'status', 'escalated', 'queue', v_queue
     );
   end if;
 
@@ -263,11 +250,11 @@ begin
     ticket_id, conversation_id, actor_id, idempotency_key, action_type, status, result_summary
   ) values (
     v_ticket_id, v_conversation_id, p_requester_id, p_idempotency_key,
-    'escalate_to_human', 'success', 'Escalation queued'
+    'escalate_to_human', 'succeeded', 'Escalation queued'
   );
 
   return jsonb_build_object(
-    'ticketId', v_ticket_id, 'status', v_status, 'queue', v_queue
+    'ticketId', v_ticket_id, 'status', 'escalated', 'queue', v_queue
   );
 end;
 $$;
@@ -339,7 +326,7 @@ begin
     ticket_id, conversation_id, actor_id, idempotency_key, action_type, status, result_summary
   ) values (
     p_ticket_id, p_conversation_id, p_requester_id, p_idempotency_key,
-    'send_test_notification', 'success',
+    'send_test_notification', 'succeeded',
     left('Simulated notification: ' || p_message, 500)
   )
   on conflict (actor_id, idempotency_key) do nothing

@@ -12,6 +12,7 @@ import type {
   TicketPatch,
   TicketPriority,
   TicketRecord,
+  TicketCreateResult,
   TicketRepository,
   TicketStatus,
 } from './tickets.types.js';
@@ -25,6 +26,7 @@ const isResolved = (status: TicketStatus) =>
 /** Process-local repository for tests and offline development only. */
 export class InMemoryTicketRepository implements TicketRepository {
   private readonly tickets = new Map<string, TicketRecord>();
+  private readonly ticketsByIdempotencyKey = new Map<string, string>();
   private readonly audit: AuditLogEntry[] = [];
   private nextNumber = 2001;
   private clock = 0;
@@ -39,7 +41,14 @@ export class InMemoryTicketRepository implements TicketRepository {
     return new Date(this.clock).toISOString();
   }
 
-  async create(input: NewTicket): Promise<TicketRecord> {
+  async create(input: NewTicket): Promise<TicketCreateResult> {
+    const idempotencyKey = `${input.requesterId}:${input.idempotencyKey}`;
+    const existingId = this.ticketsByIdempotencyKey.get(idempotencyKey);
+    if (existingId) {
+      const existing = this.tickets.get(existingId);
+      if (existing) return { ticket: { ...existing }, created: false };
+    }
+
     const now = this.now();
     const ticket: TicketRecord = {
       id: randomUUID(),
@@ -61,7 +70,8 @@ export class InMemoryTicketRepository implements TicketRepository {
       updatedAt: now,
     };
     this.tickets.set(ticket.id, ticket);
-    return { ...ticket };
+    this.ticketsByIdempotencyKey.set(idempotencyKey, ticket.id);
+    return { ticket: { ...ticket }, created: true };
   }
 
   async findById(id: string): Promise<TicketRecord | null> {
@@ -184,23 +194,41 @@ export class SupabaseTicketRepository implements TicketRepository {
     private readonly client: () => SupabaseClient = getServiceClient
   ) {}
 
-  async create(input: NewTicket): Promise<TicketRecord> {
+  async create(input: NewTicket): Promise<TicketCreateResult> {
     const { data, error } = await this.client()
       .from('tickets')
-      .insert({
-        requester_id: input.requesterId,
-        title: input.title,
-        description: input.description,
-        category: input.category,
-        priority: input.priority,
-        is_escalated: input.isEscalated ?? false,
-        conversation_id: input.conversationId ?? null,
-        escalation_summary: input.escalationSummary ?? null,
-      })
+      .upsert(
+        {
+          requester_id: input.requesterId,
+          title: input.title,
+          description: input.description,
+          category: input.category,
+          priority: input.priority,
+          idempotency_key: input.idempotencyKey,
+          is_escalated: input.isEscalated ?? false,
+          conversation_id: input.conversationId ?? null,
+          escalation_summary: input.escalationSummary ?? null,
+        },
+        {
+          onConflict: 'requester_id,idempotency_key',
+          ignoreDuplicates: true,
+        }
+      )
       .select(ticketColumns)
+      .maybeSingle<TicketRow>();
+    if (error) throw databaseError(error, 'ticket create');
+    if (data) return { ticket: toTicket(data), created: true };
+
+    const existing = await this.client()
+      .from('tickets')
+      .select(ticketColumns)
+      .eq('requester_id', input.requesterId)
+      .eq('idempotency_key', input.idempotencyKey)
       .single<TicketRow>();
-    if (error || !data) throw databaseError(error, 'ticket create');
-    return toTicket(data);
+    if (existing.error || !existing.data) {
+      throw databaseError(existing.error, 'ticket idempotency lookup');
+    }
+    return { ticket: toTicket(existing.data), created: false };
   }
 
   async findById(id: string): Promise<TicketRecord | null> {

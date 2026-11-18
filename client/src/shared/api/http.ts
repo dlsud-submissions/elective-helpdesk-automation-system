@@ -64,6 +64,7 @@ export type ApiRequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH';
   body?: unknown;
   timeoutMs?: number;
+  idempotencyKey?: string;
   /** Skip the global sign-out on 401 (used while loading the profile). */
   skipUnauthorizedHandler?: boolean;
 };
@@ -86,6 +87,9 @@ export async function apiFetch<T>(
   const token = await tokenProvider();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (options.idempotencyKey) {
+    headers['Idempotency-Key'] = options.idempotencyKey;
+  }
 
   let response: Response;
   try {

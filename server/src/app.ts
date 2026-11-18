@@ -23,7 +23,8 @@ import {
   type ConversationRepository,
 } from './features/chat/index.js';
 import { helloRouter } from './features/hello/index.js';
-import { knowledgeRouter } from './features/knowledge/index.js';
+import { createKnowledgeRouter } from './features/knowledge/index.js';
+import type { KnowledgeService } from './features/knowledge/knowledge.service.js';
 import {
   createTicketRouter,
   SupabaseTicketRepository,
@@ -38,6 +39,7 @@ export type AppDependencies = {
   tickets: TicketRepository;
   conversations: ConversationRepository;
   answer: AnswerProvider;
+  knowledge?: Pick<KnowledgeService, 'search'>;
   answerTimeoutMs?: number;
 };
 
@@ -77,7 +79,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
   app.use(helloRouter);
   app.use(createAuthRouter({ requireAuth, profiles: deps.profiles }));
   app.use(createTicketRouter({ requireAuth, tickets: ticketService }));
-  app.use(knowledgeRouter);
+  app.use(createKnowledgeRouter({ requireAuth, service: overrides.knowledge }));
   app.use(
     createChatRouter({ requireAuth, conversations: conversationService })
   );

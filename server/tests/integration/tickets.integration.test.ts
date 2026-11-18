@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { bearer, createTestApp, users } from '../helpers/auth.fixtures.js';
@@ -9,10 +10,15 @@ describe('ticket endpoints', () => {
     ({ app } = createTestApp());
   });
 
-  const createTicket = (user: 'dana' | 'sam' = 'dana', body = {}) =>
+  const createTicket = (
+    user: 'dana' | 'sam' = 'dana',
+    body = {},
+    idempotencyKey: string = randomUUID()
+  ) =>
     request(app)
       .post('/api/tickets')
       .set('Authorization', bearer(user))
+      .set('Idempotency-Key', idempotencyKey)
       .send({
         title: 'Cannot sign in to VPN',
         description: 'My VPN connection fails after multi-factor prompt.',
@@ -48,6 +54,7 @@ describe('ticket endpoints', () => {
     const response = await request(app)
       .post('/api/tickets')
       .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', randomUUID())
       .set('x-user-id', users.lee.id)
       .set('x-user-role', 'admin')
       .send({ title: 'MFA reset', description: 'Need new phone.' });
@@ -61,6 +68,64 @@ describe('ticket endpoints', () => {
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('validation_error');
     expect(response.body.error).toContain('required');
+  });
+
+  it('requires an idempotency key and returns the same ticket on retry', async () => {
+    const missingKey = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .send({ title: 'VPN', description: 'Connection fails.' });
+    expect(missingKey.status).toBe(400);
+    expect(missingKey.body.error).toContain('Idempotency-Key');
+
+    const first = await createTicket('dana', {}, 'ticket-retry-001');
+    const retry = await createTicket('dana', {}, 'ticket-retry-001');
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(201);
+    expect(retry.body.ticket.id).toBe(first.body.ticket.id);
+
+    const list = await request(app)
+      .get('/api/tickets')
+      .set('Authorization', bearer('dana'));
+    expect(list.body.tickets).toHaveLength(1);
+    expect(
+      (
+        await request(app)
+          .get(`/api/tickets/${first.body.ticket.id}`)
+          .set('Authorization', bearer('lee'))
+      ).body.audit
+    ).toHaveLength(1);
+  });
+
+  it('rejects unsupported ticket creation fields', async () => {
+    const response = await createTicket('dana', { isAdmin: true });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('validation_error');
+    expect(response.body.error).toContain('unexpected field');
+    const list = await request(app)
+      .get('/api/tickets')
+      .set('Authorization', bearer('dana'));
+    expect(list.body.tickets).toHaveLength(0);
+  });
+
+  it('rejects unexpected ticket mutation fields instead of silently ignoring them', async () => {
+    const ticket = (await createTicket()).body.ticket;
+    const response = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('lee'))
+      .send({ status: 'open', admin: true });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('validation_error');
+    expect(response.body.error).toContain('unexpected field');
+    expect(
+      (
+        await request(app)
+          .get(`/api/tickets/${ticket.id}`)
+          .set('Authorization', bearer('lee'))
+      ).body.ticket.status
+    ).toBe('new');
   });
 
   it('scopes employee reads to their own tickets', async () => {

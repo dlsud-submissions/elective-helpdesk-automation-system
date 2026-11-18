@@ -38,9 +38,15 @@ export type TicketRecord = {
 
 export type NewTicket = ValidatedTicketRequest & {
   requesterId: string;
+  idempotencyKey: string;
   isEscalated?: boolean;
   conversationId?: string | null;
   escalationSummary?: string | null;
+};
+
+export type TicketCreateResult = {
+  ticket: TicketRecord;
+  created: boolean;
 };
 
 export type TicketMutation = {
@@ -77,7 +83,7 @@ export type TicketListFilter = {
 };
 
 export interface TicketRepository {
-  create(ticket: NewTicket): Promise<TicketRecord>;
+  create(ticket: NewTicket): Promise<TicketCreateResult>;
   findById(id: string): Promise<TicketRecord | null>;
   list(filter: TicketListFilter): Promise<TicketRecord[]>;
   /** Returns null when expectedUpdatedAt no longer matches (conflict). */

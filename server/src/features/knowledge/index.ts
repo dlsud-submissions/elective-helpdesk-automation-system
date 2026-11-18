@@ -1,4 +1,4 @@
-export { knowledgeRouter } from './knowledge.routes.js';
+export { createKnowledgeRouter } from './knowledge.routes.js';
 export {
   chunkArticle,
   normalizeArticleText,

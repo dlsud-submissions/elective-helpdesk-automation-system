@@ -29,11 +29,15 @@ export async function updateTicket(
   ).ticket;
 }
 
-export async function createTicket(input: NewTicketInput): Promise<Ticket> {
+export async function createTicket(
+  input: NewTicketInput,
+  idempotencyKey: string
+): Promise<Ticket> {
   return (
     await apiFetch<{ ticket: Ticket }>('/api/tickets', {
       method: 'POST',
       body: input,
+      idempotencyKey,
     })
   ).ticket;
 }

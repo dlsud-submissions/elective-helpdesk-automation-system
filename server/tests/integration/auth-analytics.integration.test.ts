@@ -71,10 +71,11 @@ describe('GET /api/analytics/summary', () => {
 
   it('returns aggregate counts only for agents', async () => {
     const { app } = createTestApp();
-    for (const priority of ['high', 'low']) {
+    for (const [index, priority] of ['high', 'low'].entries()) {
       await request(app)
         .post('/api/tickets')
         .set('Authorization', bearer('dana'))
+        .set('Idempotency-Key', `analytics-ticket-${index}`)
         .send({ title: 'Printer jam', description: 'Paper stuck.', priority });
     }
 
