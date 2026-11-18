@@ -201,6 +201,9 @@ export class ConversationService {
     conversationId: string,
     context: AuthContext
   ): Promise<ConversationRecord> {
+    if (!UUID_PATTERN.test(conversationId)) {
+      throw notFound('Conversation not found.');
+    }
     const conversation = await this.repository.findById(conversationId);
     if (!conversation || conversation.requesterId !== context.userId) {
       throw notFound('Conversation not found.');

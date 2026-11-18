@@ -50,4 +50,6 @@ export type NewTicketInput = {
   description: string;
   category?: string;
   priority?: TicketPriority;
+  /** Links the ticket to the chat it came from (must be the caller's own). */
+  conversationId?: string;
 };

@@ -90,7 +90,8 @@ export function validateQuestion(input: unknown): string {
 
 export function answerKnowledgeQuestion(question: string): ChatAnswer {
   const unsupportedScope =
-    /(payroll|finance|legal|hr|benefits|banking|salary)/i;
+    // Word boundaries: "hr" must not match inside "Chrome" or "through".
+    /\b(payroll|finance|legal|hr|benefits|banking|salary)\b/i;
 
   if (unsupportedScope.test(question)) {
     return {

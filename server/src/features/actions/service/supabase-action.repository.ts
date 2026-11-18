@@ -50,7 +50,7 @@ export class SupabaseActionRepository implements ActionRepository {
       p_idempotency_key: input.idempotencyKey,
       p_conversation_id: input.conversationId ?? null,
     });
-    return parseTicketResult(result, 'open');
+    return parseTicketResult(result);
   }
 
   async escalateToHuman(input: {
@@ -69,7 +69,7 @@ export class SupabaseActionRepository implements ActionRepository {
       p_conversation_id: input.conversationId ?? null,
       p_idempotency_key: input.idempotencyKey,
     });
-    const ticketResult = parseTicketResult(result, 'escalated');
+    const ticketResult = parseTicketResult(result);
     if (!isRecord(result) || typeof result.queue !== 'string') {
       throw new Error('Supabase returned an invalid escalation result.');
     }
@@ -164,16 +164,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseTicketResult(
-  result: unknown,
-  expectedStatus: 'open' | 'escalated'
-): TicketResult {
+/**
+ * A first call returns the new ticket's status. An idempotent replay returns
+ * the ticket's current status, which may have moved on (for example to
+ * in_progress), so any non-empty status is accepted.
+ */
+function parseTicketResult(result: unknown): TicketResult {
   if (
     !isRecord(result) ||
     typeof result.ticketId !== 'string' ||
     result.ticketId.length === 0 ||
     typeof result.status !== 'string' ||
-    result.status !== expectedStatus
+    result.status.length === 0
   ) {
     throw new Error('Supabase returned an invalid ticket result.');
   }

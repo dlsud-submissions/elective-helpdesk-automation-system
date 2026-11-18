@@ -38,12 +38,16 @@ export function EmptyState({ children }: { children: ReactNode }) {
 
 export function DeniedState({
   message = "You don't have permission to view this page.",
+  headingLevel = 1,
 }: {
   message?: string;
+  /** Use 2 when the page already has its own h1 (e.g. inside a panel). */
+  headingLevel?: 1 | 2;
 }) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2';
   return (
     <section className="panel" aria-labelledby="denied-title">
-      <h1 id="denied-title">Access denied</h1>
+      <Heading id="denied-title">Access denied</Heading>
       <p role="alert">{message}</p>
     </section>
   );

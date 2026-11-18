@@ -6,10 +6,11 @@ import {
   RequireAuth,
   RequireRole,
   useAuth,
+  useProfile,
 } from '../features/auth';
 import { ChatPage } from '../features/chat';
 import { DashboardPage } from '../features/dashboard';
-import { TicketQueuePage } from '../features/tickets';
+import { MyTicketsPage, TicketQueuePage } from '../features/tickets';
 import { AppShell } from './AppShell';
 
 function HomeRedirect() {
@@ -22,6 +23,11 @@ function HomeRedirect() {
       replace
     />
   );
+}
+
+function MyTicketsRoute() {
+  const profile = useProfile();
+  return <MyTicketsPage userId={profile.id} />;
 }
 
 export function AppRoutes() {
@@ -39,6 +45,7 @@ export function AppRoutes() {
         {/* Optional segments keep one mounted page while the id changes, so
             chat state and the loaded queue survive navigation. */}
         <Route path="/chat/:conversationId?" element={<ChatPage />} />
+        <Route path="/tickets/:ticketId?" element={<MyTicketsRoute />} />
         <Route
           path="/queue/:ticketId?"
           element={

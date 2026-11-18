@@ -6,6 +6,8 @@
   --color-bg: #f5f7f4;
   --color-surface: #ffffff;
   --color-border: #d5ddd9;
+  /* Form-control edges need 3:1 against the surface (WCAG 1.4.11): about 4.5:1. */
+  --color-input-border: #6b7a76;
   --color-primary: #24695a;
   --color-primary-hover: #1b5246;
   --color-primary-soft: #e3f0ec;
@@ -79,9 +81,19 @@ a {
   position: absolute;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Headings and panels focused by script show no ring for mouse users, but
+   keep the standard ring when reached by keyboard. */
+[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .skip-link {
@@ -107,6 +119,18 @@ a {
 
 .pre-line {
   white-space: pre-line;
+}
+
+/* Long URLs, error codes and unbroken strings must wrap at 320px. */
+.pre-line,
+.message__body,
+.sources__excerpt,
+.ticket-row__title,
+.ticket-detail,
+.alert,
+h1,
+h2 {
+  overflow-wrap: anywhere;
 }
 
 .row {
@@ -135,9 +159,18 @@ a {
   background: var(--color-primary-hover);
 }
 
-.button:disabled {
+.button:disabled,
+.button[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.button[aria-disabled='true']:hover {
+  background: var(--color-primary);
+}
+
+.button--secondary[aria-disabled='true']:hover {
+  background: var(--color-surface);
 }
 
 .button--secondary {
@@ -194,6 +227,7 @@ a {
 
 .field__row input {
   flex: 1;
+  min-width: 0;
 }
 
 .field__error {
@@ -206,7 +240,7 @@ select,
 textarea {
   min-height: 2.5rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-input-border);
   border-radius: var(--radius);
   background: var(--color-surface);
   color: inherit;
@@ -320,6 +354,8 @@ textarea {
 .badge {
   display: inline-block;
   padding: 0.1rem 0.5rem;
+  /* Transparent border becomes visible in forced-colours mode. */
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--color-primary-soft);
   font-size: 0.8rem;
@@ -350,6 +386,7 @@ textarea {
   display: grid;
   place-items: center;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 1rem;
 }
 
@@ -418,11 +455,45 @@ textarea {
   margin-bottom: 0.5rem;
 }
 
+.back-link--always {
+  display: inline-block;
+}
+
+.narrow {
+  max-width: 48rem;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+  margin: 1rem 0;
+}
+
+.details dt {
+  font-weight: 600;
+}
+
+.details dd {
+  margin: 0;
+}
+
 /* Chat */
+/* The sidebar follows the chat in the DOM (focus order) but sits on the
+   left on wide screens. */
 .chat-layout {
   display: grid;
-  grid-template-columns: 15rem 1fr;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  grid-template-areas: 'sidebar main';
   gap: 1rem;
+}
+
+.chat-main {
+  grid-area: main;
+}
+
+.chat-sidebar {
+  grid-area: sidebar;
 }
 
 .chat-sidebar {
@@ -456,7 +527,9 @@ textarea {
 .chat-main {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: calc(100vh - 6rem);
+  min-height: calc(100dvh - 6rem);
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -477,7 +550,13 @@ textarea {
   padding: 0.5rem 0;
 }
 
+.message-slot {
+  display: grid;
+  min-width: 0;
+}
+
 .message {
+  min-width: 0;
   max-width: 46rem;
   margin: 0;
   padding: 0.75rem 1rem;
@@ -489,8 +568,10 @@ textarea {
   background: var(--color-primary-soft);
 }
 
+/* Shown with a dashed edge and a text state, not reduced opacity, which
+   dropped the meta text below 4.5:1. */
 .message--pending {
-  opacity: 0.75;
+  border: 1px dashed var(--color-primary);
 }
 
 .message--assistant {
@@ -568,6 +649,12 @@ textarea {
 
 .composer__row textarea {
   flex: 1;
+  min-width: 0;
+}
+
+/* Keep focused content clear of the sticky composer. */
+html:has(.composer) {
+  scroll-padding-bottom: 10rem;
 }
 
 .create-ticket {
@@ -614,6 +701,7 @@ textarea {
 
 .ticket-row[aria-current='true'] {
   border-color: var(--color-primary);
+  border-left-width: 4px;
   box-shadow: inset 4px 0 0 var(--color-primary);
 }
 
@@ -706,20 +794,20 @@ textarea {
 /* Narrow screens */
 @media (max-width: 48rem) {
   .chat-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .chat-sidebar {
-    order: 2;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'main'
+      'sidebar';
   }
 
   .chat-main {
     min-height: calc(100vh - 8rem);
+    min-height: calc(100dvh - 8rem);
     padding: 0.75rem;
   }
 
   .split--detail {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .split--detail .split__list {
@@ -734,5 +822,38 @@ textarea {
     margin-left: 0;
     width: 100%;
     justify-content: space-between;
+  }
+}
+
+@media (max-width: 30rem) {
+  .app-main {
+    padding: 0.75rem;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+  }
+
+  .composer__row {
+    flex-direction: column;
+  }
+
+  .field__row {
+    flex-wrap: wrap;
+  }
+}
+
+/* Windows High Contrast / forced colours: replace shadows and colour-only
+   cues with system-coloured outlines. */
+@media (forced-colors: active) {
+  .ticket-row[aria-current='true'],
+  .conversation-list a[aria-current='page'],
+  .nav a.active {
+    outline: 2px solid Highlight;
+  }
+
+  .message--assistant,
+  .alert {
+    border: 1px solid CanvasText;
   }
 }

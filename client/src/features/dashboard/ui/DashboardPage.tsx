@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { toApiError, type ApiError } from '../../../shared/api/http';
 import {
   DeniedState,
@@ -6,6 +13,7 @@ import {
   ErrorState,
   LoadingState,
 } from '../../../shared/ui/StatusViews';
+import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import {
   getAnalyticsSummary,
   type AnalyticsSummary,
@@ -46,6 +54,9 @@ export function DashboardPage() {
   const [applied, setApplied] = useState(range);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
+  const rangeErrorId = useId();
+  const fromRef = useRef<HTMLInputElement>(null);
+  useDocumentTitle('Dashboard');
 
   const fetchSummary = useCallback(async (value: typeof range) => {
     setLoad({ status: 'loading' });
@@ -64,6 +75,7 @@ export function DashboardPage() {
     event.preventDefault();
     if (!range.from || !range.to || range.from > range.to) {
       setRangeError('Choose a start date on or before the end date.');
+      fromRef.current?.focus();
       return;
     }
     setRangeError(null);
@@ -83,7 +95,10 @@ export function DashboardPage() {
           <span>From</span>
           <input
             type="date"
+            ref={fromRef}
             value={range.from}
+            aria-invalid={Boolean(rangeError)}
+            aria-describedby={rangeError ? rangeErrorId : undefined}
             onChange={(event) =>
               setRange({ ...range, from: event.target.value })
             }
@@ -94,6 +109,8 @@ export function DashboardPage() {
           <input
             type="date"
             value={range.to}
+            aria-invalid={Boolean(rangeError)}
+            aria-describedby={rangeError ? rangeErrorId : undefined}
             onChange={(event) => setRange({ ...range, to: event.target.value })}
           />
         </label>
@@ -102,7 +119,7 @@ export function DashboardPage() {
         </button>
       </form>
       {rangeError ? (
-        <p className="field__error" role="alert">
+        <p className="field__error" role="alert" id={rangeErrorId}>
           {rangeError}
         </p>
       ) : null}

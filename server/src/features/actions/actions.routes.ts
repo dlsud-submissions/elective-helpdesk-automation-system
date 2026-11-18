@@ -20,8 +20,36 @@ interface ActionRouterDependencies {
   testNotificationSimulationEnabled: boolean;
 }
 
-function sendError(response: Response, status: number, error: string) {
-  response.status(status).json({ status: 'error', error });
+export type ActionErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'validation_error'
+  | 'confirmation_required'
+  | 'conflict'
+  | 'service_unavailable'
+  | 'action_failed';
+
+const defaultCodes: Record<number, ActionErrorCode> = {
+  400: 'validation_error',
+  401: 'unauthorized',
+  403: 'forbidden',
+  409: 'conflict',
+  422: 'validation_error',
+  502: 'action_failed',
+  503: 'service_unavailable',
+};
+
+/**
+ * Errors use the API-wide shape { error, code }. `status: 'error'` is kept
+ * for callers written against the original action contract.
+ */
+function sendError(
+  response: Response,
+  status: number,
+  error: string,
+  code: ActionErrorCode = defaultCodes[status] ?? 'action_failed'
+) {
+  response.status(status).json({ status: 'error', error, code });
 }
 
 function getBearerToken(request: Request): string | undefined {
@@ -126,8 +154,10 @@ export function createActionRouter({
       if (missingFields.length > 0) {
         response.status(422).json({
           status: 'needs_clarification',
+          code: 'needs_clarification',
           missing_fields: missingFields,
           message: 'More information is needed before this action can proceed.',
+          error: 'More information is needed before this action can proceed.',
         });
         return;
       }
@@ -135,8 +165,10 @@ export function createActionRouter({
         if (!context.conversation_id) {
           response.status(422).json({
             status: 'needs_clarification',
+            code: 'needs_clarification',
             missing_fields: ['conversation_id'],
             message: 'A conversation is required to request clarification.',
+            error: 'A conversation is required to request clarification.',
           });
           return;
         }
@@ -151,8 +183,10 @@ export function createActionRouter({
       if (proposal.confidence < 0.5) {
         response.status(422).json({
           status: 'needs_clarification',
+          code: 'needs_clarification',
           missing_fields: [],
           message: 'The request is uncertain and requires clarification.',
+          error: 'The request is uncertain and requires clarification.',
         });
         return;
       }
@@ -173,7 +207,12 @@ export function createActionRouter({
         return;
       }
       if (getConfirmedIntent(request) !== proposal.intent) {
-        sendError(response, 409, 'Explicit confirmation is required.');
+        sendError(
+          response,
+          409,
+          'Explicit confirmation is required.',
+          'confirmation_required'
+        );
         return;
       }
 
@@ -201,7 +240,7 @@ export function createActionRouter({
           category: getStringArgument(proposal.arguments, 'category'),
           priority: getStringArgument(proposal.arguments, 'priority'),
           idempotencyKey,
-          ...context,
+          conversationId: context.conversation_id,
         });
         response.status(201).json({
           status: 'success',
@@ -229,7 +268,7 @@ export function createActionRouter({
           summary,
           reason: getStringArgument(proposal.arguments, 'reason'),
           idempotencyKey,
-          ...context,
+          conversationId: context.conversation_id,
         });
         response.status(201).json({
           status: 'success',

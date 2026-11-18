@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { LoadingState } from '../../../shared/ui/StatusViews';
+import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { useAuth } from '../AuthProvider';
 import { homePathFor, type SignedOutNotice } from '../types';
 
@@ -38,6 +39,7 @@ export function LoginPage() {
   const passwordRef = useRef<HTMLInputElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
   const ids = { email: useId(), password: useId() };
+  useDocumentTitle('Sign in');
 
   useEffect(() => {
     if (authError) alertRef.current?.focus();
@@ -46,6 +48,7 @@ export function LoginPage() {
   if (state.status === 'loading') {
     return (
       <main className="page-center">
+        <h1 className="visually-hidden">IT Helpdesk</h1>
         <LoadingState label="Checking your session…" />
       </main>
     );
@@ -147,7 +150,6 @@ export function LoginPage() {
                 type="button"
                 className="button button--secondary"
                 onClick={() => setShowPassword((value) => !value)}
-                aria-pressed={showPassword}
               >
                 {showPassword ? 'Hide password' : 'Show password'}
               </button>

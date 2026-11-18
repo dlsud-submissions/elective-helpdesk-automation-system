@@ -27,7 +27,7 @@ export function HelloCard() {
   }
 
   return (
-    <main>
+    <section>
       <h1>Client and server connection check</h1>
       <p>Send a greeting to the Express API and display its reply.</p>
       <button disabled={loading} onClick={checkConnection} type="button">
@@ -40,6 +40,6 @@ export function HelloCard() {
         </section>
       )}
       {error && <p role="alert">{error}</p>}
-    </main>
+    </section>
   );
 }

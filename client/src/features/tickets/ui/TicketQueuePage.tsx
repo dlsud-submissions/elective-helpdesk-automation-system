@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toApiError, type ApiError } from '../../../shared/api/http';
 import {
@@ -7,6 +7,7 @@ import {
   ErrorState,
   LoadingState,
 } from '../../../shared/ui/StatusViews';
+import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { listTickets } from '../api/tickets.api';
 import {
   defaultFilters,
@@ -28,6 +29,23 @@ export function TicketQueuePage() {
   const { ticketId } = useParams();
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [filters, setFilters] = useState<QueueFilters>(defaultFilters);
+  useDocumentTitle(ticketId ? 'Ticket details' : 'Ticket queue');
+
+  // Closing the detail returns focus to the row that opened it, because on
+  // narrow screens that row was hidden and focus would otherwise be lost.
+  const lastOpened = useRef<string | null>(null);
+  useEffect(() => {
+    if (ticketId) {
+      lastOpened.current = ticketId;
+      return;
+    }
+    const previous = lastOpened.current;
+    lastOpened.current = null;
+    if (!previous) return;
+    document
+      .querySelector<HTMLElement>(`[data-ticket-id="${CSS.escape(previous)}"]`)
+      ?.focus();
+  }, [ticketId]);
 
   const refresh = useCallback(async () => {
     try {
@@ -121,6 +139,12 @@ export function TicketQueuePage() {
           </label>
         </div>
 
+        <p className="visually-hidden" role="status" aria-live="polite">
+          {load.status === 'ready'
+            ? `${visible.length} ${visible.length === 1 ? 'ticket' : 'tickets'} shown.`
+            : ''}
+        </p>
+
         {load.status === 'loading' ? (
           <LoadingState label="Loading tickets…" />
         ) : null}
@@ -147,6 +171,7 @@ export function TicketQueuePage() {
                 <Link
                   to={`/queue/${ticket.id}`}
                   className="ticket-row"
+                  data-ticket-id={ticket.id}
                   aria-current={ticket.id === ticketId ? 'true' : undefined}
                 >
                   <span className="ticket-row__head">
@@ -176,7 +201,7 @@ export function TicketQueuePage() {
       {ticketId ? (
         <section className="split__detail" aria-label="Ticket detail">
           <Link to="/queue" className="back-link">
-            ← Back to queue
+            <span aria-hidden="true">← </span>Back to queue
           </Link>
           <TicketDetail
             key={ticketId}

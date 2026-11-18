@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { toApiError, type ApiError } from '../../../shared/api/http';
 import {
   DeniedState,
   ErrorState,
   LoadingState,
 } from '../../../shared/ui/StatusViews';
+import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { getTicket, listStaff, updateTicket } from '../api/tickets.api';
 import { priorityLabels, statusLabels, statusOptionsFor } from '../model/queue';
 import type { StaffMember, Ticket, TicketStatus } from '../types';
@@ -28,6 +35,18 @@ export function TicketDetail({
   const [status, setStatus] = useState<TicketStatus>('new');
   const [assignee, setAssignee] = useState('');
   const [save, setSave] = useState<SaveState>({ status: 'idle' });
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const loadCount = useRef(0);
+  const [loaded, setLoaded] = useState(0);
+  useDocumentTitle(
+    ticket ? `${ticket.reference} · Ticket queue` : 'Ticket details'
+  );
+
+  // Each completed load (opening a ticket or 'Reload ticket') moves focus to
+  // the ticket heading: on narrow screens the list that had focus is hidden.
+  useEffect(() => {
+    if (loaded) headingRef.current?.focus();
+  }, [loaded]);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -41,6 +60,8 @@ export function TicketDetail({
       setStaff(agents);
       setStatus(detail.ticket.status);
       setAssignee(detail.ticket.assignedTo ?? '');
+      loadCount.current += 1;
+      setLoaded(loadCount.current);
     } catch (error) {
       setLoadError(toApiError(error));
     }
@@ -50,7 +71,7 @@ export function TicketDetail({
     void load();
   }, [load]);
 
-  if (loadError?.kind === 'forbidden') return <DeniedState />;
+  if (loadError?.kind === 'forbidden') return <DeniedState headingLevel={2} />;
   if (loadError) {
     return <ErrorState message={loadError.message} onRetry={load} />;
   }
@@ -61,7 +82,7 @@ export function TicketDetail({
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!ticket || !dirty) return;
+    if (!ticket || !dirty || save.status === 'saving') return;
     setSave({ status: 'saving' });
     try {
       const updated = await updateTicket(ticket.id, {
@@ -102,7 +123,9 @@ export function TicketDetail({
         <p className="muted small">
           {ticket.reference} · {priorityLabels[ticket.priority]} priority
         </p>
-        <h2 id="ticket-title">{ticket.title}</h2>
+        <h2 id="ticket-title" ref={headingRef} tabIndex={-1}>
+          {ticket.title}
+        </h2>
         <p className="muted small">
           Requester: {ticket.requesterName} · Category: {ticket.category} ·
           Opened {new Date(ticket.createdAt).toLocaleString()}
@@ -167,7 +190,9 @@ export function TicketDetail({
         <button
           type="submit"
           className="button"
-          disabled={!dirty || save.status === 'saving'}
+          // aria-disabled, not disabled: the focused button must stay
+          // focusable while saving and after a successful save.
+          aria-disabled={!dirty || save.status === 'saving'}
         >
           {save.status === 'saving' ? 'Saving…' : 'Save'}
         </button>
