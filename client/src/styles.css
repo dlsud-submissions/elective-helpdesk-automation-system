@@ -449,7 +449,9 @@ textarea {
   max-width: 80rem;
   margin: 0 auto;
 }
-
+.app-main:focus {
+  outline: none;
+}
 .back-link {
   display: none;
   margin-bottom: 0.5rem;
@@ -501,15 +503,45 @@ textarea {
   align-content: start;
   gap: 0.75rem;
 }
+@media (min-width: 48.001rem) {
+  .chat-layout {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding-inline: 1rem;
+  }
 
+  .chat-sidebar {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    width: 100%;
+    min-width: 0;
+    height: calc(100vh - 7.25rem);
+    height: calc(100dvh - 7.25rem);
+    min-height: 20rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 1rem;
+    border-right: 1px solid var(--color-border);
+  }
+}
 .conversation-list {
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.conversation-list li {
+  min-width: 0;
+}
+
 .conversation-list a {
   display: block;
+  width: 100%;
+  min-width: 0;
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius);
   color: var(--color-text);
