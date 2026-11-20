@@ -33,4 +33,32 @@ describe('SupabaseActionRepository', () => {
       status: 'success',
     });
   });
+
+  it('accepts an idempotent replay after an agent moved the ticket on', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://project.supabase.co');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'fixture-key');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          ticketId: '77777777-7777-4777-8777-777777777777',
+          status: 'in_progress',
+        })
+      )
+    );
+
+    const result = await new SupabaseActionRepository().createTicket({
+      requesterId: '22222222-2222-4222-8222-222222222222',
+      title: 'VPN',
+      description: 'VPN fails after MFA.',
+      category: 'network',
+      priority: 'medium',
+      idempotencyKey: 'ticket-001',
+    });
+
+    expect(result).toEqual({
+      ticketId: '77777777-7777-4777-8777-777777777777',
+      status: 'in_progress',
+    });
+  });
 });

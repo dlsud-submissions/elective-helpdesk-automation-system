@@ -317,14 +317,17 @@ describe('dashboard analytics (S3-06)', () => {
         call.path.startsWith('/api/analytics/summary')
           ? {
               status: 503,
-              body: { error: 'db down', code: 'service_unavailable' },
+              body: {
+                error: 'The helpdesk database is unavailable.',
+                code: 'service_unavailable',
+              },
             }
           : undefined
       )
     );
     renderApp('/dashboard');
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Something went wrong on our side.');
+    expect(alert).toHaveTextContent('The helpdesk database is unavailable.');
     expect(
       within(alert).getByRole('button', { name: 'Retry' })
     ).toBeInTheDocument();

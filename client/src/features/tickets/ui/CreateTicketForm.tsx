@@ -1,7 +1,9 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { toApiError } from '../../../shared/api/http';
 import { createTicket } from '../api/tickets.api';
 import type { Ticket, TicketPriority } from '../types';
+
+type FieldErrors = { title?: string; description?: string };
 
 /**
  * Employee ticket form, prefilled from a chat question. A confirmation is
@@ -10,26 +12,56 @@ import type { Ticket, TicketPriority } from '../types';
 export function CreateTicketForm({
   initialTitle,
   initialDescription,
+  conversationId,
   onCreated,
   onCancel,
 }: {
   initialTitle: string;
   initialDescription: string;
+  /** The chat this ticket came from; the API checks the caller owns it. */
+  conversationId?: string | null;
   onCreated: (ticket: Ticket) => void;
   onCancel: () => void;
 }) {
-  const ids = { title: useId(), description: useId(), priority: useId() };
+  const ids = {
+    heading: useId(),
+    title: useId(),
+    description: useId(),
+    priority: useId(),
+  };
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const idempotencyKey = useRef(crypto.randomUUID());
   const [title, setTitle] = useState(initialTitle.slice(0, 120));
   const [description, setDescription] = useState(initialDescription);
   const [priority, setPriority] = useState<TicketPriority>('medium');
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
+
+  // Opening the form moves focus into it so keyboard and screen-reader users
+  // land on the new content instead of staying on the button that opened it.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  // Any edit makes this a different request, so it gets a new key. A retry of
+  // the unchanged form keeps the key and cannot create a duplicate ticket.
+  const edited = () => {
+    idempotencyKey.current = crypto.randomUUID();
+  };
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!title.trim() || !description.trim()) {
-      setError('Add a title and description.');
+    if (submitting) return;
+    const errors: FieldErrors = {
+      ...(title.trim() ? {} : { title: 'Add a short title.' }),
+      ...(description.trim() ? {} : { description: 'Describe the problem.' }),
+    };
+    setFieldErrors(errors);
+    if (errors.title || errors.description) {
+      (errors.title ? titleRef : descriptionRef).current?.focus();
       return;
     }
     setSubmitting(true);
@@ -41,6 +73,7 @@ export function CreateTicketForm({
             title: title.trim(),
             description: description.trim(),
             priority,
+            ...(conversationId ? { conversationId } : {}),
           },
           idempotencyKey.current
         )
@@ -52,37 +85,61 @@ export function CreateTicketForm({
     }
   }
 
+  const describedBy = (field: keyof FieldErrors, id: string) =>
+    fieldErrors[field] ? `${id}-error` : undefined;
+
   return (
     <form
       className="panel create-ticket"
       onSubmit={onSubmit}
-      aria-label="Create a ticket"
+      aria-labelledby={ids.heading}
+      noValidate
     >
-      <h3>Create a ticket</h3>
+      <h2 id={ids.heading} ref={headingRef} tabIndex={-1}>
+        Create a ticket
+      </h2>
       <div className="field">
         <label htmlFor={ids.title}>Title</label>
         <input
           id={ids.title}
+          ref={titleRef}
           value={title}
           maxLength={120}
+          required
+          aria-invalid={Boolean(fieldErrors.title)}
+          aria-describedby={describedBy('title', ids.title)}
           onChange={(event) => {
-            idempotencyKey.current = crypto.randomUUID();
+            edited();
             setTitle(event.target.value);
           }}
         />
+        {fieldErrors.title ? (
+          <p className="field__error" id={`${ids.title}-error`}>
+            {fieldErrors.title}
+          </p>
+        ) : null}
       </div>
       <div className="field">
         <label htmlFor={ids.description}>Description</label>
         <textarea
           id={ids.description}
+          ref={descriptionRef}
           rows={4}
           maxLength={5000}
+          required
           value={description}
+          aria-invalid={Boolean(fieldErrors.description)}
+          aria-describedby={describedBy('description', ids.description)}
           onChange={(event) => {
-            idempotencyKey.current = crypto.randomUUID();
+            edited();
             setDescription(event.target.value);
           }}
         />
+        {fieldErrors.description ? (
+          <p className="field__error" id={`${ids.description}-error`}>
+            {fieldErrors.description}
+          </p>
+        ) : null}
       </div>
       <div className="field">
         <label htmlFor={ids.priority}>Priority</label>
@@ -90,7 +147,7 @@ export function CreateTicketForm({
           id={ids.priority}
           value={priority}
           onChange={(event) => {
-            idempotencyKey.current = crypto.randomUUID();
+            edited();
             setPriority(event.target.value as TicketPriority);
           }}
         >
@@ -106,14 +163,17 @@ export function CreateTicketForm({
         </p>
       ) : null}
       <div className="row">
-        <button type="submit" className="button" disabled={submitting}>
+        {/* aria-disabled keeps the focused button in place while submitting. */}
+        <button type="submit" className="button" aria-disabled={submitting}>
           {submitting ? 'Creating…' : 'Create ticket'}
         </button>
         <button
           type="button"
           className="button button--secondary"
-          onClick={onCancel}
-          disabled={submitting}
+          onClick={() => {
+            if (!submitting) onCancel();
+          }}
+          aria-disabled={submitting}
         >
           Cancel
         </button>

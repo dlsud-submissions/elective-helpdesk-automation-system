@@ -1,7 +1,11 @@
 import cors from 'cors';
 import express, { type Express } from 'express';
 import { getAllowedOrigins } from './config/cors.js';
-import { actionRouter } from './features/actions/index.js';
+import {
+  createActionRouter,
+  SupabaseActionRepository,
+  type ActionRepository,
+} from './features/actions/index.js';
 import {
   AnalyticsService,
   createAnalyticsRouter,
@@ -41,6 +45,8 @@ export type AppDependencies = {
   answer: AnswerProvider;
   knowledge?: Pick<KnowledgeService, 'search'>;
   answerTimeoutMs?: number;
+  actions?: ActionRepository;
+  testNotificationSimulationEnabled?: boolean;
 };
 
 /** Builds the API. Tests inject fakes; production uses Supabase adapters. */
@@ -57,7 +63,11 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
   };
 
   const requireAuth = createRequireAuth(deps.authVerifier);
-  const ticketService = new TicketService(deps.tickets, deps.profiles);
+  const ticketService = new TicketService(
+    deps.tickets,
+    deps.profiles,
+    deps.conversations
+  );
   const conversationService = new ConversationService(
     deps.conversations,
     deps.answer,
@@ -84,7 +94,24 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
     createChatRouter({ requireAuth, conversations: conversationService })
   );
   app.use(createAnalyticsRouter({ requireAuth, analytics: analyticsService }));
-  app.use(actionRouter);
+  app.use(
+    createActionRouter({
+      // Actions share the API's verified-session path, so roles always come
+      // from public.profiles and tests can inject a fake verifier.
+      authProvider: {
+        authenticate: async (accessToken) => {
+          const result = await deps.authVerifier.verify(accessToken);
+          return result.status === 'ok'
+            ? { id: result.context.userId, role: result.context.role }
+            : null;
+        },
+      },
+      repository: overrides.actions ?? new SupabaseActionRepository(),
+      testNotificationSimulationEnabled:
+        overrides.testNotificationSimulationEnabled ??
+        process.env.ENABLE_TEST_NOTIFICATION_SIMULATION === 'true',
+    })
+  );
 
   app.use(
     (
@@ -106,6 +133,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
         response.status(413).json({
           status: 'error',
           error: 'Request body exceeds the allowed size.',
+          code: 'payload_too_large',
         });
         return;
       }

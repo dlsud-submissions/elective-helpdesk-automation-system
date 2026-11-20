@@ -33,4 +33,6 @@ The next implementation milestone should use these approved contract documents a
 5. Complete ticket creation and escalation flows with audit tracking.
 6. Run the full Sprint 3 end-to-end validation and record evidence before closing the sprint.
 
+Status as of November 18, 2026: items 1–5 are implemented. The chat UI now reaches the allowlisted escalation action, and action-created tickets are audited. See the [S3 completion evidence](./saluta-completion-evidence.md). Item 6 belongs to S3-07.
+
 This handoff file is intentionally lightweight and serves as the implementation-ready link between verified Sprint 2 backend work and the Sprint 3 UI and workflow build.

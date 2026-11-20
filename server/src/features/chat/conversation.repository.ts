@@ -181,7 +181,11 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', conversationId);
-    if (touch.error) throw databaseError(touch.error, 'conversation touch');
+    // The messages are already stored. Failing here would make the client
+    // retry and duplicate them, so a stale sort timestamp is only logged.
+    if (touch.error) {
+      console.error('Conversation timestamp update failed.');
+    }
 
     return (data ?? [])
       .map(toMessage)

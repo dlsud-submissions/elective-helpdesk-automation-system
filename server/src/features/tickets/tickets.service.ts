@@ -5,6 +5,7 @@ import {
   HttpError,
   notFound,
 } from '../../shared/http/errors.js';
+import { isUuid } from '../../shared/validation/uuid.js';
 import type {
   AuditLogEntry,
   NewTicket,
@@ -120,11 +121,48 @@ export function assertTransition(from: TicketStatus, to: TicketStatus): void {
   }
 }
 
+/** Resolves who owns a chat conversation, so tickets can link to it. */
+export type ConversationOwnerLookup = {
+  findById(id: string): Promise<{ requesterId: string } | null>;
+};
+
 export class TicketService {
   constructor(
     private readonly repository: TicketRepository,
-    private readonly profiles: TicketProfileLookup
+    private readonly profiles: TicketProfileLookup,
+    private readonly conversations?: ConversationOwnerLookup
   ) {}
+
+  /**
+   * Splits an optional conversationId off the request body. A ticket may only
+   * link to a conversation the requester owns; anything else is a 400 so
+   * conversation IDs cannot be probed or attached to someone else's ticket.
+   */
+  private async takeConversationId(
+    input: unknown,
+    context: RequestContext
+  ): Promise<{ body: unknown; conversationId?: string }> {
+    if (
+      typeof input !== 'object' ||
+      input === null ||
+      Array.isArray(input) ||
+      !('conversationId' in input)
+    ) {
+      return { body: input };
+    }
+    const { conversationId, ...body } = input as Record<string, unknown>;
+    if (conversationId === undefined || conversationId === null) {
+      return { body };
+    }
+    if (!isUuid(conversationId)) {
+      throw badRequest('conversationId must be a valid UUID.');
+    }
+    const conversation = await this.conversations?.findById(conversationId);
+    if (!conversation || conversation.requesterId !== context.userId) {
+      throw badRequest('conversationId does not match one of your chats.');
+    }
+    return { body, conversationId };
+  }
 
   /** Requester identity always comes from the verified auth context. */
   async create(
@@ -136,8 +174,13 @@ export class TicketService {
     > = {},
     idempotencyKey: string = randomUUID()
   ): Promise<TicketRecord> {
+    const { body, conversationId } = await this.takeConversationId(
+      input,
+      context
+    );
     const result = await this.repository.create({
-      ...validateTicketRequest(input),
+      ...validateTicketRequest(body),
+      ...(conversationId ? { conversationId } : {}),
       ...extras,
       requesterId: context.userId,
       idempotencyKey,
@@ -165,6 +208,9 @@ export class TicketService {
     ticketId: string,
     context: RequestContext
   ): Promise<{ ticket: TicketRecord; audit: AuditLogEntry[] }> {
+    // A malformed ID can never match, and must not reach the database (where
+    // it would surface as a misleading 503).
+    if (!isUuid(ticketId)) throw notFound('Ticket not found.');
     const ticket = await this.repository.findById(ticketId);
     // Return 404 rather than 403 so ticket IDs cannot be probed.
     if (
@@ -201,6 +247,7 @@ export class TicketService {
     if (Object.keys(mutation).some((field) => !allowedFields.has(field))) {
       throw badRequest('Ticket update contains an unexpected field.');
     }
+    if (!isUuid(ticketId)) throw notFound('Ticket not found.');
     const ticket = await this.repository.findById(ticketId);
     if (!ticket) throw notFound('Ticket not found.');
 

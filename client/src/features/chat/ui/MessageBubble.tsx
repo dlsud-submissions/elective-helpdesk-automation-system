@@ -23,7 +23,9 @@ export function SourceList({
         {sources.map((source, index) => (
           <li key={`${source.articleId}-${index}`}>
             <details>
-              <summary aria-label={`Source ${index + 1}: ${source.title}`}>
+              {/* No aria-label: the visible marker, title and source name are
+                  the accessible name, so voice-control users can say them. */}
+              <summary>
                 <span className="sources__marker">[{index + 1}]</span>{' '}
                 {source.title}
                 {source.sourceName ? (
@@ -44,9 +46,11 @@ export function SourceList({
 export function MessageBubble({
   message,
   onCreateTicket,
+  onEscalate,
 }: {
   message: ChatMessage;
   onCreateTicket?: () => void;
+  onEscalate?: () => void;
 }) {
   if (message.senderType === 'user') {
     return (
@@ -84,18 +88,30 @@ export function MessageBubble({
       ) : null}
       <div className="message__body pre-line">{message.content}</div>
       <SourceList sources={message.sourceRefs} messageId={message.id} />
-      {onCreateTicket && (message.outcome === 'answered' || uncertain) ? (
+      {(onCreateTicket || onEscalate) &&
+      (message.outcome === 'answered' || uncertain) ? (
         <div className="message__actions">
           <span className="muted small">
             {uncertain ? 'Need more help?' : 'Did this not solve it?'}
           </span>
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={onCreateTicket}
-          >
-            {uncertain ? 'Create a ticket' : 'No, create a ticket'}
-          </button>
+          {onEscalate ? (
+            <button
+              type="button"
+              className={uncertain ? 'button' : 'button button--secondary'}
+              onClick={onEscalate}
+            >
+              Talk to a person
+            </button>
+          ) : null}
+          {onCreateTicket ? (
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={onCreateTicket}
+            >
+              {uncertain ? 'Create a ticket' : 'No, create a ticket'}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </article>

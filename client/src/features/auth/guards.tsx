@@ -19,6 +19,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (state.status === 'loading') {
     return (
       <main className="page-center">
+        <h1 className="visually-hidden">IT Helpdesk</h1>
         <LoadingState label="Checking your session…" />
       </main>
     );
@@ -26,6 +27,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (state.status === 'error') {
     return (
       <main className="page-center">
+        <h1 className="visually-hidden">IT Helpdesk</h1>
         <ErrorState message={state.message} onRetry={retry} />
       </main>
     );

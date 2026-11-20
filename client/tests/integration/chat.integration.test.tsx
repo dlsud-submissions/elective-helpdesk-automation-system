@@ -316,10 +316,16 @@ describe('employee chat (S3-02, S3-03)', () => {
     fireEvent.click(send);
     fireEvent.keyDown(input, { key: 'Enter' });
 
+    // Shown in the typing indicator and announced by the status region.
     expect(
-      await screen.findByText('Checking approved IT procedures…')
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sending…' })).toBeDisabled();
+      await screen.findAllByText('Checking approved IT procedures…')
+    ).not.toHaveLength(0);
+    // aria-disabled (not disabled) so the focused button keeps focus.
+    expect(screen.getByRole('button', { name: 'Sending…' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(input).not.toBeDisabled();
 
     pending.resolve({
       status: 201,

@@ -11,7 +11,12 @@ import {
   defaultFilters,
   type Ticket,
 } from '../../src/features/tickets';
-import { ApiError, apiFetch, kindForStatus } from '../../src/shared/api/http';
+import {
+  ApiError,
+  apiFetch,
+  isRetryable,
+  kindForStatus,
+} from '../../src/shared/api/http';
 
 describe('chatReducer', () => {
   const response = {
@@ -170,7 +175,68 @@ describe('apiFetch', () => {
     expect(kindForStatus(409)).toBe('conflict');
     expect(kindForStatus(422)).toBe('validation');
     expect(kindForStatus(504)).toBe('timeout');
-    expect(kindForStatus(503)).toBe('server');
+    expect(kindForStatus(503)).toBe('unavailable');
+    expect(kindForStatus(502)).toBe('unavailable');
+    expect(kindForStatus(429)).toBe('rateLimited');
+    expect(kindForStatus(413)).toBe('tooLarge');
+    expect(kindForStatus(500)).toBe('server');
+  });
+
+  it('shows safe server messages for rate limits and unavailable services', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          error: "We couldn't get an answer right now. Please try again.",
+          code: 'answer_unavailable',
+        }),
+      })
+    );
+    await expect(apiFetch('/api/x')).rejects.toMatchObject({
+      kind: 'unavailable',
+      code: 'answer_unavailable',
+      message: "We couldn't get an answer right now. Please try again.",
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => null,
+      })
+    );
+    await expect(apiFetch('/api/x')).rejects.toMatchObject({
+      kind: 'rateLimited',
+      message: 'Too many requests right now. Wait a moment and try again.',
+    });
+  });
+
+  it('reads a message field when a response has no error string', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        json: async () => ({
+          status: 'needs_clarification',
+          message: 'More information is needed.',
+        }),
+      })
+    );
+    await expect(apiFetch('/api/x')).rejects.toMatchObject({
+      kind: 'validation',
+      message: 'More information is needed.',
+    });
+  });
+
+  it('marks only repeatable failures as retryable', () => {
+    expect(isRetryable(new ApiError('timeout', 't'))).toBe(true);
+    expect(isRetryable(new ApiError('unavailable', 'u'))).toBe(true);
+    expect(isRetryable(new ApiError('validation', 'v'))).toBe(false);
+    expect(isRetryable(new ApiError('tooLarge', 'l'))).toBe(false);
   });
 
   it('hides server error details for 5xx responses', async () => {
