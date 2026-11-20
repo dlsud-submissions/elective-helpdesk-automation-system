@@ -54,9 +54,20 @@ Roles come from `public.profiles`, never from user-editable auth metadata. API c
 ### Tests
 
 ```bash
-npm run verify:all   # repo checks, typecheck, unit + integration tests, lint, format, build
-npm run test:e2e     # Playwright; skipped unless E2E_BASE_URL is set
+npm run verify:all      # repo checks, typecheck, unit + integration tests, lint, format, build
+npm run test:performance # bounded timeout and dependency-resilience checks
+npm run test:e2e        # Playwright; skipped unless E2E_BASE_URL is set
 ```
+
+Sprint evidence:
+
+- [Sprint 4 RAG and security evidence](docs/sprints/sprint-4/reganit-qa-evidence.md)
+- [Sprint 4 API hardening evidence](docs/sprints/sprint-4/harvey-api-hardening-evidence.md)
+- [Matthew's Sprint 4 resilience evidence](docs/sprints/sprint-4/matthew-performance-evidence.md)
+- [Matthew's release-candidate evidence](docs/sprints/sprint-4/matthew-release-evidence.md)
+- [Sprint 5 release and defense checklist](docs/resources/matthew-release-checklist.md)
+- [Final QA and AI evaluation report](docs/sprints/sprint-5/final-qa-report.md)
+- [Defense deck outline](docs/resources/matthew-defense-deck.md)
 
 To run the browser E2E suite against the seeded local stack started above:
 

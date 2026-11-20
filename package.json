@@ -24,6 +24,7 @@
     "test:server": "npm test --workspace @elective-helpdesk/server",
     "test:client:watch": "npm run test:watch --workspace @elective-helpdesk/client",
     "test:server:watch": "npm run test:watch --workspace @elective-helpdesk/server",
+    "test:performance": "npm test --workspace @elective-helpdesk/server -- tests/performance",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "npm run lint --workspace @elective-helpdesk/client",
     "lint:server": "npm run lint --workspace @elective-helpdesk/server",
