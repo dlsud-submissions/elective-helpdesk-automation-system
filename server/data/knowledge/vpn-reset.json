@@ -1,0 +1,8 @@
+{
+  "id": "article-demo-vpn-reset",
+  "title": "Reset the fictional demo VPN profile",
+  "sourceName": "Fictional IT Support Guide",
+  "category": "network-access",
+  "isPublished": true,
+  "body": "For the fictional helpdesk demo, open the Demo VPN icon in the system tray and select Profile > Reset profile. Sign in again with the demo account. If the Demo VPN icon is missing or the reset fails, record the displayed error in a support ticket and ask the support agent to review it. Never request or record a user's password in the ticket."
+}
