@@ -169,10 +169,6 @@ export function LoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <p className="muted small">
-          Prototype only. Use the fictional test accounts provided by the team.
-        </p>
       </section>
     </main>
   );

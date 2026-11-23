@@ -13,8 +13,8 @@ Sign in with one of the fictional test accounts listed on the sign-in screen; an
 | Role     | Account                   | Home screen   |
 | :------- | :------------------------ | :------------ |
 | Employee | `dana.cruz@example.test`  | Ask IT (chat) |
-| Agent    | `alex.tan@example.test`   | Ticket queue  |
-| Admin    | `mika.reyes@example.test` | Metrics       |
+| Agent    | `lee.agent@example.test`  | Ticket queue  |
+| Admin    | `ari.admin@example.test`  | Metrics       |
 
 ## What is simulated
 

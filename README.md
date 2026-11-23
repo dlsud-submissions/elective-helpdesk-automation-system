@@ -51,6 +51,8 @@ Then run `npm run dev` and open <http://localhost:5173>. The seed creates **fict
 
 Roles come from `public.profiles`, never from user-editable auth metadata. API contracts, error codes, and dashboard metric definitions are in [Sprint 3 API contracts](docs/sprints/sprint-3/api-contracts.md).
 
+The sign-in screen uses these seeded accounts for local testing and does not display a prototype-only notice. The React client includes subtle page, header, sign-in, and content reveal entrances; animations respect `prefers-reduced-motion` and do not alter existing layouts or interactions.
+
 ### Tests
 
 ```bash
