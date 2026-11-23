@@ -6,8 +6,8 @@
 
 const ACCOUNTS = {
   'dana.cruz@example.test': { name: 'Dana Cruz', role: 'employee' },
-  'alex.tan@example.test': { name: 'Alex Tan', role: 'agent' },
-  'mika.reyes@example.test': { name: 'Mika Reyes', role: 'admin' },
+  'lee.agent@example.test': { name: 'Lee Santos', role: 'agent' },
+  'ari.admin@example.test': { name: 'Ari Reyes', role: 'admin' },
 };
 
 const HOME_BY_ROLE = {
@@ -380,6 +380,39 @@ function render() {
   if (heading) {
     heading.focus();
   }
+  revealPageSections();
+}
+
+let revealObserver = null;
+
+function revealPageSections() {
+  if (
+    !('IntersectionObserver' in window) ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return;
+  }
+  if (!revealObserver) {
+    revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('reveal-visible');
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08 }
+    );
+  }
+  document
+    .querySelectorAll('.panel, .stat, .ticket-row, .summary-box')
+    .forEach((element) => {
+      if (!element.classList.contains('reveal-visible')) {
+        element.classList.add('reveal-ready');
+        revealObserver.observe(element);
+      }
+    });
 }
 
 function updateChrome() {
@@ -467,7 +500,7 @@ function viewSignIn() {
         <button type="submit" class="btn btn-primary btn-block" id="signin-submit">Sign in</button>
       </form>
       <div class="note">
-        <p>Prototype only. Fill in a fictional test account (any password works):</p>
+        <p>Fictional test accounts (any password works):</p>
         <ul class="plain-list">${accountButtons}</ul>
       </div>
     </section>`;

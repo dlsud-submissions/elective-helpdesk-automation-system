@@ -1,4 +1,11 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import {
   AuthProvider,
   homePathFor,
@@ -31,6 +38,41 @@ function MyTicketsRoute() {
 }
 
 export function AppRoutes() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (
+      !('IntersectionObserver' in window) ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
+
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '.app-main .panel, .app-main .chat-main, .app-main .chat-sidebar, .app-main .dashboard, .app-main .narrow'
+      )
+    );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('reveal-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08 }
+    );
+
+    elements.forEach((element) => {
+      element.classList.add('reveal-ready');
+      observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [pathname]);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
