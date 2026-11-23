@@ -405,12 +405,14 @@ function revealPageSections() {
       { threshold: 0.08 }
     );
   }
-  document.querySelectorAll('.panel, .stat, .ticket-row, .summary-box').forEach((element) => {
-    if (!element.classList.contains('reveal-visible')) {
-      element.classList.add('reveal-ready');
-      revealObserver.observe(element);
-    }
-  });
+  document
+    .querySelectorAll('.panel, .stat, .ticket-row, .summary-box')
+    .forEach((element) => {
+      if (!element.classList.contains('reveal-visible')) {
+        element.classList.add('reveal-ready');
+        revealObserver.observe(element);
+      }
+    });
 }
 
 function updateChrome() {
