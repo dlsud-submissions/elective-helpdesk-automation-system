@@ -102,7 +102,7 @@ Error (API failure or Gemini 429)
 
 `outcome` values the UI must handle: `answered`, `clarification`, `escalation_suggested`, `ticket_created`, `escalated`. Any unknown value is treated as an error.
 
-The browser never calls Gemini directly. The model can only propose actions; the UI shows an action result only from the API response.
+The current chat answer path does not call Gemini or run a model-based action proposal. Any action request uses its separate API workflow; the UI shows a successful result only after the API confirms persistence.
 
 ## Responsive and accessibility
 

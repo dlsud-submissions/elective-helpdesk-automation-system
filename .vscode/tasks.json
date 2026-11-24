@@ -290,11 +290,11 @@
       }
     },
     {
-      "label": "🏠 Supabase: Reset Local DB",
+      "label": "🚀 Supabase: Push Migrations to Linked Project",
       "type": "npm",
-      "script": "supabase:reset:local",
+      "script": "supabase:push",
       "path": ".",
-      "detail": "Rebuild the local database from migrations and supabase/seed.sql.",
+      "detail": "Apply pending migrations to the currently linked Supabase project. Verify the target before running; the linked project may be production.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
@@ -302,11 +302,47 @@
       }
     },
     {
-      "label": "🌱 Supabase: Reset & Seed Local DB",
+      "label": "⚠️ Supabase: Reset Linked DB (DESTRUCTIVE)",
+      "type": "npm",
+      "script": "supabase:reset",
+      "path": ".",
+      "detail": "DESTRUCTIVE: reset the currently linked remote database to its migrations and run configured seed SQL. Verify the linked project before confirming; it may be production.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🌱 Supabase: Seed Linked DB",
+      "type": "npm",
+      "script": "supabase:seed",
+      "path": ".",
+      "detail": "Run idempotent supabase/seed.sql against the linked remote project without resetting it. Push migrations first. Creates accounts with a known password; never use production/shared data.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🏠 Supabase: Reset Local DB",
+      "type": "npm",
+      "script": "supabase:reset:local",
+      "path": ".",
+      "detail": "Rebuild the local database from migrations without running supabase/seed.sql.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🌱 Supabase: Seed Local DB",
       "type": "npm",
       "script": "supabase:seed:local",
       "path": ".",
-      "detail": "DESTRUCTIVE locally: recreate the local database, apply migrations, and run supabase/seed.sql.",
+      "detail": "Run supabase/seed.sql against the local database without resetting it. Apply migrations first.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",

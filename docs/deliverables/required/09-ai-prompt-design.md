@@ -1,10 +1,12 @@
 # 9. AI Prompt Design
 
-> **Status:** Initial drafts. Test against the selected Gemini model and revise based on observed accuracy, relevance, safety, and citation behavior.
+> **Status:** Future design reference, not current runtime behavior. The implemented chat path uses deterministic local knowledge ranking and answer generation. Gemini is currently used server-side only for optional agent ticket-solution drafts; see [Gemini API Configuration](../gemini-configuration.md).
 
 **Guiding rule:** Retrieved documents and user input must be treated as **data**, not as instructions that override system rules.
 
 ## Summary
+
+The prompt examples below are proposals for possible later model-backed workflows. They are not sent to Gemini by the current chat or action APIs, and their expected outputs are not evaluation results.
 
 | Prompt Purpose             | Expected Output                                                                                                                        |
 | :------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,10 +55,10 @@ Conversation: {{conversation}}
 
 Only fictional data may be sent to Gemini. Prompts and retrieved context must contain no credentials or unnecessary personal data.
 
-## Output Contracts
+## Proposed Output Contracts
 
-The compact taxonomy with per-prompt input contracts, structured output schemas, fallback behavior, citation rules, and prompt-injection handling is maintained in [AI Prompt Taxonomy and Output Contracts](08a-prompt-taxonomy.md). Prompt IDs `AI-P1` (grounded answer), `AI-P2` (intent/action proposal), and `AI-P3` (escalation summary) are used by the API specifications and testing matrix. Model selection and validation are recorded in [Gemini API Configuration](08-gemini-configuration.md).
+The proposed input contracts, structured output examples, fallback behavior, and prompt-injection guidance are maintained in [AI Prompt Taxonomy and Output Contracts](08-prompt-taxonomy.md). Prompt IDs `AI-P1` through `AI-P3` are documentation labels only; active API handlers do not use them. The current chat behavior is specified in the [chat API contract](../api-specifications/chat-answer.md), and the actual Gemini use is described in [Gemini API Configuration](../gemini-configuration.md).
 
 ---
 
-[← Gemini API Configuration](08-gemini-configuration.md) · [README](../../README.md) · Next: [Workflow Automation](10-workflow-automation.md)
+[← Gemini API Configuration](../gemini-configuration.md) · [Project README](../../../README.md) · Next: [Workflow Automation](10-workflow-automation.md)

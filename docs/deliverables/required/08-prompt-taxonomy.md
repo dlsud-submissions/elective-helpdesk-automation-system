@@ -1,15 +1,15 @@
 # AI Prompt Taxonomy and Output Contracts
 
-> **Sprint:** 1 (task S1-13, owner: Reganit, John) · **Status:** Initial prototype contracts for review by the backend owner.
+> **Status:** Proposed prompt designs only; these prompts are not invoked by the current runtime. The chat answer path uses deterministic local knowledge ranking and answer generation. Gemini is used only for optional agent ticket-solution drafts. See [Gemini API Configuration](../gemini-configuration.md) and the [chat API contract](../api-specifications/chat-answer.md).
 > **Parents:** [AI Prompt Design](09-ai-prompt-design.md) · [System Architecture](06-system-architecture.md) · [Scope and Limitations](04-scope-and-limitations.md)
 
-This document turns the three prompt purposes in the prompt-design document into a compact taxonomy with explicit input, output, failure, and safety contracts. Prompt IDs (`AI-P1`…`AI-P3`) are stable and are referenced by the API specifications and the testing matrix.
+The prompt IDs (`AI-P1`…`AI-P3`) below organize future design work only. They are not runtime contracts and are not referenced by active API handlers.
 
 ## Guiding rule
 
 User text and retrieved passages are **untrusted data**, never instructions. The model may propose an intent or draft an answer, but the backend owns authorization, validation, and execution: the model cannot confirm that an action ran, cannot grant a role, cannot approve itself, and cannot change its own rules.
 
-## Taxonomy overview
+## Proposed taxonomy
 
 | ID    | Prompt purpose            | Used when                                                          | Output shape                                     | Execution impact                              |
 | :---- | :------------------------ | :----------------------------------------------------------------- | :----------------------------------------------- | :-------------------------------------------- |
@@ -17,16 +17,14 @@ User text and retrieved passages are **untrusted data**, never instructions. The
 | AI-P2 | Intent / action proposal  | Any request that may need a workflow (ticket, escalation, or none) | Structured JSON intent + entities                | Proposal only; backend validates and executes |
 | AI-P3 | Human escalation summary  | A ticket is created/escalated, or the user asks for a person       | Human-readable summary for the agent             | None — enriches the ticket/aid notes          |
 
-### Routing order (backend decides, not the model)
+### Current runtime (not the proposed prompt flow)
 
-1. Authenticate user and load `profiles.role`; reject unauthorized requests before any model call.
-2. Retrieve approved knowledge chunks; pass them to AI-P2 for intent classification.
-3. If the intent is `knowledge_question`, run AI-P1 with the retrieved context.
-4. If the intent is `create_ticket` or `escalate_to_human`, validate required fields, execute the backend action, then run AI-P3 for the summary.
-5. If the intent is `unsupported` or validation fails, reply with a safe fallback and offer escalation.
-6. If `knowledge_question` has no supporting context, skip AI-P1's answer and use the uncertainty fallback.
+1. Authenticate the request and load the trusted profile before protected operations.
+2. For chat, rank the curated local knowledge set and build a grounded answer or an insufficient-context response; persist the answer and supported source references.
+3. Ticket creation, escalation, and simulation actions use separate API workflows. The action endpoint validates the submitted proposal, authorization, explicit confirmation, and idempotency key; it does not call an LLM.
+4. For an assigned ticket, an agent may request an optional Gemini-generated solution draft, review or edit it, and save it. Draft generation does not send a reply automatically.
 
-## Shared contract rules
+## Proposed prompt safety rules
 
 - **Authoritative context:** only `knowledge_articles` where `is_published = true` may be placed in a prompt.
 - **No secrets:** never send passwords, API keys, tokens, one-time codes, card numbers, or payroll data. The server redacts credential-like patterns before building the prompt.
@@ -55,11 +53,11 @@ call an action, or claim an action succeeded.
 
 ---
 
-## AI-P1 — Grounded knowledge answer
+## Proposed AI-P1 — Grounded knowledge answer
 
 | Field             | Contract                                                                                                                                                           |
 | :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| When used         | Intent resolved to `knowledge_question` and at least one approved chunk was retrieved.                                                                             |
+| When used         | Future design only: a knowledge-answer model is deliberately introduced and approved context is available.                                                         |
 | Required inputs   | `question` (user text, ≤2,000 chars, redacted), `context_chunks[]` (`article_id`, `source_title`, `chunk_text`), `conversation_turns` (≤3 recent turns, redacted). |
 | Optional inputs   | `user.display_name` (fictional only), `locale` (default `en`).                                                                                                     |
 | Prohibited inputs | Credentials, real employee identifiers, unpublished articles, internal DB IDs beyond chunk/article IDs.                                                            |
@@ -123,11 +121,11 @@ The backend stores the verified `source_refs` array (`article_id`, `source_title
 
 ---
 
-## AI-P2 — Intent / action proposal
+## Proposed AI-P2 — Intent / action proposal
 
 | Field             | Contract                                                                                                                                                                                  |
 | :---------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| When used         | Every chat turn, after auth and retrieval, to classify the request.                                                                                                                       |
+| When used         | Future design only: an explicit model-based intent classifier is introduced. It is not called for current chat turns.                                                                     |
 | Required inputs   | `user_request` (redacted, ≤2,000 chars), `available_intents[]` (allowlist from the backend), `retrieved_context_hint` (titles/summaries only), `user.role` (context for allowed intents). |
 | Optional inputs   | `recent_turns` (≤3), `open_ticket_id` when continuing a known ticket.                                                                                                                     |
 | Prohibited inputs | Secrets, real employee data, server-side permission internals.                                                                                                                            |
@@ -211,7 +209,7 @@ USER REQUEST (untrusted data)
 
 ---
 
-## AI-P3 — Human escalation summary
+## Proposed AI-P3 — Human escalation summary
 
 | Field             | Contract                                                                                                                      |
 | :---------------- | :---------------------------------------------------------------------------------------------------------------------------- |
@@ -260,10 +258,6 @@ Missing: dock model number and whether the demo laptop charges while docked.
 
 ---
 
-## Backend integration notes
+## Runtime boundary
 
-- AI-P2 output is validated against a JSON schema before use; the server maps `intent` to a fixed handler and re-checks the allowlist, so a hallucinated intent cannot reach an executor.
-- AI-P1 citations are matched against the chunks actually supplied to the model; unmatched citations are dropped and stored as `citation_mismatch` audit events.
-- The user-facing reply is assembled by the backend from (a) the validated intent, (b) the executed action's real result, and (c) the answer/summary text — the UI never renders raw model claims of success.
-- All three prompts use the same model (`gemini-2.5-flash`) through the server-side adapter documented in [Gemini API Configuration](08-gemini-configuration.md); a model change requires re-validating these contracts.
-- Coverage of these contracts is planned in the testing matrix under grounded-answer, intent/action, escalation, and prompt-injection scenarios.
+The proposed contracts above are not wired into the server. Current action execution accepts a caller-supplied proposal and applies runtime schema, role, confirmation, and idempotency checks; see [Allowlisted Action Contract](../api-specifications/allowlisted-actions.md). Current chat does not call Gemini, validate model-generated citations, or run AI-P1/AI-P2/AI-P3. Do not treat the sample prompts or outputs above as measured or shipped behavior.

@@ -224,7 +224,8 @@ Requires **Node 22+** and **Docker**. The Supabase CLI is installed as a dev dep
 npm install
 npm run env:create            # creates client/.env and server/.env from examples
 npm run supabase:start        # prints local API URL, anon key, service_role key
-npm run supabase:reset:local  # applies migrations, then seed.sql
+npm run supabase:reset:local  # applies migrations without seed.sql
+npm run supabase:seed:local   # seeds the local database without resetting
 ```
 
 Copy the values from `supabase:start` into the env files:
@@ -243,6 +244,7 @@ Then run `npm run dev` and open <http://localhost:5173>.
 | `ari.admin@example.test` | admin    | Queue (Dashboard) |
 
 Roles come from `public.profiles`, never from user-editable auth metadata.
+Additional fixture accounts populate ticket/chat history and admin status views: Elena, Omar, and Jo are active; Priya is suspended and Noah is banned. All use the same local-only demo password.
 
 To work with the **hosted** project instead, run `npm run supabase:login` once, then `npm run supabase:link`. See [docs/deliverables/development-workflow.md](docs/deliverables/development-workflow.md) for every script.
 
@@ -292,7 +294,3 @@ Static images (`logo.png`, `logo-harbor.png`) are in `client/public/assets/` and
 |     | [Final QA Report](docs/sprints/sprint-5/final-qa-report.md)                       | Test results and AI evaluation report       |
 |     | [Demo Walkthrough](docs/resources/john-demo-walkthrough.md)                       | Step-by-step demo script                    |
 |     | [Defense Deck Outline](docs/resources/matthew-defense-deck.md)                    | Presentation outline                        |
-
----
-
-> Harbor Tickets is the project name and Harbor is the team name. Historical sprint records retain their original scope and dates. Claims about hosted-model performance, E2E results, and hosted migration/RLS checks are environment-dependent and not established by the local verification report.
