@@ -1,6 +1,6 @@
 # Work Breakdown Structure (WBS)
 
-> Status: Draft for Sprint 1 review. This deliverable-based WBS tracks the prototype plan for AI-HAS and distinguishes implemented repository setup from product work that remains scheduled for Sprint 2.
+> Status: Historical Sprint 1 planning baseline for Harbor Tickets. It records the original plan; current implementation scope is summarized in the root README and later sprint evidence.
 
 ## Purpose and scope
 

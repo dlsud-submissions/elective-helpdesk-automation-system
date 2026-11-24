@@ -10,11 +10,11 @@ Open `docs/resources/mockups/index.html` directly in a browser (double-click it,
 
 Sign in with one of the fictional test accounts listed on the sign-in screen; any password is accepted:
 
-| Role     | Account                   | Home screen   |
-| :------- | :------------------------ | :------------ |
-| Employee | `dana.cruz@example.test`  | Ask IT (chat) |
-| Agent    | `alex.tan@example.test`   | Ticket queue  |
-| Admin    | `mika.reyes@example.test` | Metrics       |
+| Role     | Account                  | Home screen   |
+| :------- | :----------------------- | :------------ |
+| Employee | `dana.cruz@example.test` | Ask IT (chat) |
+| Agent    | `lee.agent@example.test` | Ticket queue  |
+| Admin    | `ari.admin@example.test` | Metrics       |
 
 ## What is simulated
 

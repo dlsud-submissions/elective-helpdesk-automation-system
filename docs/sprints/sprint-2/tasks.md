@@ -4,6 +4,8 @@
 > **Status:** Draft task plan based on the [project timeline](../../11-timeline.md). Confirm scope and owners at Sprint 2 kickoff.
 > **Sprint goal:** Deliver tested backend ticket and knowledge services, reproducible document indexing, and grounded retrieval/answer APIs with source references.
 
+> **Implementation note:** The original S2-06 plan below specifies Gemini-generated chat answers, but that planned model-backed path was not shipped. The current chat answer implementation is deterministic local code and does not call Gemini; see the [current chat API contract](../../deliverables/api-specifications/chat-answer.md) and [Sprint 4 QA evidence](../sprint-4/reganit-qa-evidence.md). The task table preserves its original scope as historical planning context; its `Done` label is not evidence that the planned Gemini chat call was delivered.
+
 ## Task Board
 
 <!-- markdownlint-disable MD033 MD060 -->

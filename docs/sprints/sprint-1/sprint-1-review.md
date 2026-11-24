@@ -1,6 +1,6 @@
 # Sprint 1 Review and Sprint 2 Handoff
 
-> Status: Completed review record for the planning and foundation phase of AI-HAS. The implementation of app features remains intentionally deferred to Sprint 2.
+> Status: Historical completed review record for Harbor Tickets' planning and foundation phase. The implementation deferral describes the state at Sprint 1, not the current repository.
 
 ## Review summary
 

@@ -12,6 +12,7 @@ import {
   LoadingState,
 } from '../../../shared/ui/StatusViews';
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
+import { useProfile } from '../../auth';
 import { getTicket, listStaff, updateTicket } from '../api/tickets.api';
 import { priorityLabels, statusLabels, statusOptionsFor } from '../model/queue';
 import type { StaffMember, Ticket, TicketStatus } from '../types';
@@ -34,7 +35,9 @@ export function TicketDetail({
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [status, setStatus] = useState<TicketStatus>('new');
   const [assignee, setAssignee] = useState('');
+  const [notes, setNotes] = useState('');
   const [save, setSave] = useState<SaveState>({ status: 'idle' });
+  const profile = useProfile();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const loadCount = useRef(0);
   const [loaded, setLoaded] = useState(0);
@@ -54,7 +57,7 @@ export function TicketDetail({
     try {
       const [detail, agents] = await Promise.all([
         getTicket(ticketId),
-        listStaff(),
+        profile.role === 'admin' ? listStaff() : Promise.resolve([]),
       ]);
       setTicket(detail.ticket);
       setStaff(agents);
@@ -65,7 +68,7 @@ export function TicketDetail({
     } catch (error) {
       setLoadError(toApiError(error));
     }
-  }, [ticketId]);
+  }, [profile.role, ticketId]);
 
   useEffect(() => {
     void load();
@@ -78,7 +81,9 @@ export function TicketDetail({
   if (!ticket) return <LoadingState label="Loading ticket…" />;
 
   const dirty =
-    status !== ticket.status || assignee !== (ticket.assignedTo ?? '');
+    status !== ticket.status ||
+    assignee !== (ticket.assignedTo ?? '') ||
+    (profile.role === 'agent' && Boolean(notes.trim()));
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -91,10 +96,14 @@ export function TicketDetail({
         ...(assignee !== (ticket.assignedTo ?? '')
           ? { assigneeId: assignee || null }
           : {}),
+        ...(profile.role === 'agent' && notes.trim()
+          ? { notes: notes.trim() }
+          : {}),
       });
       setTicket(updated);
       setStatus(updated.status);
       setAssignee(updated.assignedTo ?? '');
+      setNotes('');
       onSaved(updated);
       setSave({
         status: 'saved',
@@ -140,6 +149,19 @@ export function TicketDetail({
         </p>
       </header>
 
+      {profile.role === 'agent' ? (
+        <label className="field">
+          <span>Solution or follow-up</span>
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            rows={4}
+            placeholder="Record the solution or next follow-up…"
+            disabled={save.status === 'saving'}
+          />
+        </label>
+      ) : null}
+
       {ticket.escalationSummary ? (
         <section className="callout" aria-labelledby="summary-title">
           <h3 id="summary-title">
@@ -172,21 +194,23 @@ export function TicketDetail({
             ))}
           </select>
         </label>
-        <label className="field field--inline">
-          <span>Assigned to</span>
-          <select
-            value={assignee}
-            onChange={(event) => setAssignee(event.target.value)}
-            disabled={save.status === 'saving'}
-          >
-            <option value="">Unassigned</option>
-            {staff.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
+        {profile.role === 'admin' ? (
+          <label className="field field--inline">
+            <span>Assigned to</span>
+            <select
+              value={assignee}
+              onChange={(event) => setAssignee(event.target.value)}
+              disabled={save.status === 'saving'}
+            >
+              <option value="">Unassigned</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <button
           type="submit"
           className="button"
@@ -203,6 +227,7 @@ export function TicketDetail({
           {save.message}
         </p>
       ) : null}
+
       {saveError ? (
         <div className="alert alert--error" role="alert">
           <p>{saveError}</p>

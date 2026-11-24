@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import type { ChatAnswer } from '../../src/features/chat/index.js';
-import { bearer, createTestApp } from '../helpers/auth.fixtures.js';
+import { bearer, createTestApp, users } from '../helpers/auth.fixtures.js';
 
 describe('chat answer endpoint', () => {
   const { app } = createTestApp();
@@ -111,6 +111,140 @@ describe('chat messages and conversation history', () => {
         content: 'Hello',
       });
     expect(write.status).toBe(404);
+  });
+
+  it('limits agent chat access to conversations linked to assigned tickets', async () => {
+    const { app } = createTestApp();
+    const assignedChat = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('dana'))
+      .send({ content: 'My VPN keeps disconnecting.' });
+    const unrelatedChat = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('sam'))
+      .send({ content: 'My laptop will not start.' });
+    const ticket = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'assigned-chat-ticket')
+      .send({
+        title: 'VPN disconnects',
+        description: 'The VPN drops frequently.',
+        conversationId: assignedChat.body.conversationId,
+      });
+    await request(app)
+      .patch(`/api/tickets/${ticket.body.ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: '22222222-2222-4222-8222-222222222222' });
+
+    const agentList = await request(app)
+      .get('/api/conversations')
+      .set('Authorization', bearer('lee'));
+    expect(agentList.status).toBe(200);
+    expect(
+      agentList.body.conversations.map((item: { id: string }) => item.id)
+    ).toEqual([assignedChat.body.conversationId]);
+
+    const assignedHistory = await request(app)
+      .get(`/api/conversations/${assignedChat.body.conversationId}/messages`)
+      .set('Authorization', bearer('lee'));
+    const unrelatedHistory = await request(app)
+      .get(`/api/conversations/${unrelatedChat.body.conversationId}/messages`)
+      .set('Authorization', bearer('lee'));
+    const agentSend = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('lee'))
+      .send({ content: 'Starting a new chat.' });
+    const adminList = await request(app)
+      .get('/api/conversations')
+      .set('Authorization', bearer('ari'));
+    const adminSend = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('ari'))
+      .send({ content: 'Starting a new chat.' });
+
+    expect(assignedHistory.status).toBe(200);
+    expect(assignedHistory.body.messages.at(-1).senderType).toBe('system');
+    expect(assignedHistory.body.messages.at(-1).content).toContain(
+      ticket.body.ticket.reference
+    );
+    expect(assignedHistory.body.messages.at(-1).content).toContain(
+      'The VPN drops frequently.'
+    );
+    expect(unrelatedHistory.status).toBe(404);
+    expect(agentSend.status).toBe(403);
+    expect(adminList.status).toBe(403);
+    expect(adminSend.status).toBe(403);
+  });
+
+  it('allows agents to archive or delete assigned chats only after resolution', async () => {
+    const { app } = createTestApp();
+    const firstChat = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('dana'))
+      .send({ content: 'VPN ticket to archive.' });
+    const secondChat = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('dana'))
+      .send({ content: 'VPN ticket to delete.' });
+
+    const firstTicket = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'archive-chat-ticket')
+      .send({
+        title: 'Archive test',
+        description: 'Archive test details.',
+        conversationId: firstChat.body.conversationId,
+      });
+    const secondTicket = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'delete-chat-ticket')
+      .send({
+        title: 'Delete test',
+        description: 'Delete test details.',
+        conversationId: secondChat.body.conversationId,
+      });
+
+    const assigned = await Promise.all(
+      [firstTicket.body.ticket, secondTicket.body.ticket].map((ticket) =>
+        request(app)
+          .patch(`/api/tickets/${ticket.id}`)
+          .set('Authorization', bearer('ari'))
+          .send({ assigneeId: users.lee.id })
+      )
+    );
+
+    const prematureArchive = await request(app)
+      .patch(`/api/conversations/${firstChat.body.conversationId}`)
+      .set('Authorization', bearer('lee'))
+      .send({ archived: true });
+    const prematureDelete = await request(app)
+      .delete(`/api/conversations/${secondChat.body.conversationId}`)
+      .set('Authorization', bearer('lee'));
+    expect(prematureArchive.status).toBe(403);
+    expect(prematureDelete.status).toBe(403);
+
+    await Promise.all(
+      assigned.map((response) =>
+        request(app)
+          .patch(`/api/tickets/${response.body.ticket.id}`)
+          .set('Authorization', bearer('lee'))
+          .send({ status: 'resolved' })
+      )
+    );
+
+    const archived = await request(app)
+      .patch(`/api/conversations/${firstChat.body.conversationId}`)
+      .set('Authorization', bearer('lee'))
+      .send({ archived: true });
+    const deleted = await request(app)
+      .delete(`/api/conversations/${secondChat.body.conversationId}`)
+      .set('Authorization', bearer('lee'));
+
+    expect(archived.status).toBe(200);
+    expect(deleted.status).toBe(204);
   });
 
   it('rejects empty and oversized messages', async () => {

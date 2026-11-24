@@ -4,6 +4,8 @@
 > **Status:** Draft task plan based on the [project timeline](../../11-timeline.md). Confirm test scope and owners at Sprint 4 kickoff.
 > **Sprint goal:** Reduce security, privacy, quality, reliability, and usability risks; fix release-blocking defects and produce an evidence-backed release-candidate decision.
 
+> **Evaluation note:** S4-04 and S4-05 describe planned hosted Gemini chat/embedding quality and latency tests. The recorded run in [Reganit's QA evidence](./reganit-qa-evidence.md) covered deterministic local retrieval only; hosted Gemini chat quality and latency were not measured. The `Done` labels do not imply those hosted evaluations occurred.
+
 ## Task Board
 
 <!-- markdownlint-disable MD033 MD060 -->

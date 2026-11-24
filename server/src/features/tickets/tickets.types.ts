@@ -49,9 +49,28 @@ export type TicketCreateResult = {
   created: boolean;
 };
 
+export type TicketSolutionDraftRecord = {
+  id: string;
+  ticketId: string;
+  generatedBy: string;
+  content: string;
+  model: string;
+  createdAt: string;
+};
+
+export type NewTicketSolutionDraft = Omit<
+  TicketSolutionDraftRecord,
+  'id' | 'createdAt'
+>;
+
+export type TicketSolutionGenerator = {
+  model: string;
+  generate(ticket: TicketRecord): Promise<string>;
+};
+
 export type TicketMutation = {
   status?: TicketStatus;
-  /** Profile id of an agent/admin, or null to unassign. */
+  /** Profile id of an agent, or null to unassign. */
   assigneeId?: string | null;
   notes?: string;
   /** Optimistic concurrency token: the updatedAt the caller last saw. */
@@ -80,11 +99,13 @@ export type NewAuditEntry = Omit<AuditLogEntry, 'id' | 'createdAt'>;
 
 export type TicketListFilter = {
   requesterId?: string;
+  assignedTo?: string;
 };
 
 export interface TicketRepository {
   create(ticket: NewTicket): Promise<TicketCreateResult>;
   findById(id: string): Promise<TicketRecord | null>;
+  findByConversationId(conversationId: string): Promise<TicketRecord | null>;
   list(filter: TicketListFilter): Promise<TicketRecord[]>;
   /** Returns null when expectedUpdatedAt no longer matches (conflict). */
   update(
@@ -94,6 +115,9 @@ export interface TicketRepository {
   ): Promise<TicketRecord | null>;
   recordAudit(entry: NewAuditEntry): Promise<void>;
   listAudit(ticketId: string): Promise<AuditLogEntry[]>;
+  createSolutionDraft(
+    draft: NewTicketSolutionDraft
+  ): Promise<TicketSolutionDraftRecord>;
 }
 
 /** The subset of the auth profile directory the ticket service needs. */

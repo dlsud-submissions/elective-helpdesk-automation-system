@@ -1,21 +1,21 @@
 # Development Workflow and Repository Setup
 
-This document captures the Sprint 1 repository and local-tooling decisions for the elective helpdesk platform. The application source is intentionally deferred until Sprint 2; this repo currently contains the planning and automation stub files required to support the upcoming implementation.
+This document records the Sprint 1 repository and local-tooling decisions for Harbor Tickets. Its statements about future application work are historical planning notes; the current command surface is in the root `package.json` and README.
 
-## Repository layout
+## Repository layout (current)
 
-- Root configuration files: `.gitignore`, `.env.example`, `package.json`, `compose.yaml`
-- Future client app: `client/` (expected Vite + React workspace)
-- Future server app: `server/` (expected Express + TypeScript workspace)
+- Root configuration files: `.gitignore`, `package.json`, `compose.yaml`; workspace environment templates: `client/.env.example`, `server/.env.example`
+- Client application: `client/` (React + TypeScript + Vite)
+- Server application: `server/` (Express + TypeScript)
 - GitHub automation: `.github/`
 - Local editor commands: `.vscode/tasks.json`
 - Project docs: `docs/`
 
-No application source should be created under `client/src/` or `server/src/` during Sprint 1. Those directory paths are reserved for Sprint 2 implementation.
+The original Sprint 1 plan deferred application source to Sprint 2; that implementation is now present. Current product scope and test commands are summarized in the root README.
 
 ## Required tools
 
-- Node.js 20 LTS
+- Node.js 22+
 - npm 10+
 - Docker Engine / Docker Desktop with Compose
 - GitHub access with PR review enabled
@@ -23,7 +23,7 @@ No application source should be created under `client/src/` or `server/src/` dur
 
 ## Environment placeholders
 
-The root `.env.example` contains only the required Gemini placeholders:
+Workspace examples in `client/.env.example` and `server/.env.example` define the current client and server settings, including optional Gemini placeholders:
 
 - `GEMINI_API_KEY`
 - `GEMINI_CHAT_MODEL`
@@ -46,15 +46,21 @@ The root `package.json` defines the initial command contract for the team:
 - `npm run test:server:watch`
 - `npm run verify:all`
 - `npm run supabase:link`
-- `npm run supabase:push`
-- `npm run supabase:reset`
-- `npm run supabase:seed`
+- `npm run supabase:start`
+- `npm run supabase:push:local`
+- `npm run supabase:push` (push migrations to the linked remote project; verify the target first)
+- `npm run supabase:seed` (run seed SQL on the linked project without resetting; development only)
+- `npm run supabase:reset:local` (rebuild from migrations without running the seed)
+- `npm run supabase:seed:local` (run seed SQL without resetting; requires migrations first)
+- `npm run supabase:reset` (reset the linked remote project; destructive, development project only)
 
 The corresponding VS Code tasks in `.vscode/tasks.json` delegate to these scripts so the team has one canonical command surface.
 
+Remote commands operate on the project selected by `npm run supabase:link`. Confirm the linked project before pushing migrations. The remote seed creates demo accounts with a known password and must never run against production or shared data. The linked reset drops/recreates remote database state from migrations and runs configured seed SQL; never run it against production or shared data.
+
 ## Docker and Compose
 
-The root `compose.yaml` configures a local development layout for future client and server services and keeps the environment variables explicit. It does not inject secrets into image layers. The app containers rely on runtime environment variables and outbound HTTPS access to the hosted Gemini API.
+The root `compose.yaml` configures the current client and server services and keeps environment variables explicit. It does not inject secrets into image layers. Server-side Gemini access, when configured, uses runtime environment variables and outbound HTTPS.
 
 Supabase local services remain the responsibility of the Supabase CLI workflow rather than Docker Compose. This keeps the local database stack consistent with the project's long-term database design.
 

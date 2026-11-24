@@ -24,7 +24,7 @@ export type SourceRef = {
 export type ChatMessage = {
   id: string;
   conversationId: string;
-  senderType: 'user' | 'assistant' | 'system';
+  senderType: 'user' | 'assistant' | 'agent' | 'system';
   content: string;
   outcome: ChatOutcome | null;
   sourceRefs: SourceRef[];
@@ -34,6 +34,8 @@ export type ChatMessage = {
 export type Conversation = {
   id: string;
   title: string;
+  archivedAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

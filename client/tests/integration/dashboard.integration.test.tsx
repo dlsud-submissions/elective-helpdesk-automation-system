@@ -64,23 +64,21 @@ const tickets = [
   },
 ];
 
-const staff = [
-  { id: 'u-lee', displayName: 'Lee Santos', role: 'agent' },
-  { id: 'u-ari', displayName: 'Ari Reyes', role: 'admin' },
-];
+const staff = [{ id: 'u-lee', displayName: 'Lee Santos', role: 'agent' }];
 
 function staffHandler(
   extra: (call: ApiCall) => ReturnType<Parameters<typeof mockApi>[0]> = () =>
-    undefined
+    undefined,
+  profile = profiles.ari
 ) {
   return (call: ApiCall) => {
-    const me = meHandler(profiles.lee)(call);
+    const me = meHandler(profile)(call);
     if (me) return me;
+    const custom = extra(call);
+    if (custom) return custom;
     if (call.path === '/api/tickets') return { status: 200, body: { tickets } };
     if (call.path === '/api/agents')
       return { status: 200, body: { agents: staff } };
-    const custom = extra(call);
-    if (custom) return custom;
     const detail = /^\/api\/tickets\/([^/]+)$/.exec(call.path);
     if (detail && call.method === 'GET') {
       return {
@@ -92,7 +90,7 @@ function staffHandler(
   };
 }
 
-describe('agent queue and ticket detail (S3-06)', () => {
+describe('admin queue and ticket detail (S3-06)', () => {
   beforeEach(() => {
     fake = createFakeSupabase({ session: { access_token: 'lee-token' } });
   });
@@ -104,27 +102,56 @@ describe('agent queue and ticket detail (S3-06)', () => {
     mockApi(staffHandler());
     renderApp('/queue');
 
-    const list = await screen.findByRole('list', { name: 'Tickets' });
+    const list = await screen.findByRole(
+      'list',
+      { name: 'Tickets' },
+      { timeout: 5000 }
+    );
     const refs = within(list)
       .getAllByRole('link')
       .map((link) => link.textContent?.match(/TCK-\d+/)?.[0]);
     expect(refs).toEqual(['TCK-2001', 'TCK-2002', 'TCK-2003']);
   });
 
-  it('filters to escalated tickets and shows an empty state', async () => {
-    mockApi(staffHandler());
+  it('filters by status, assignee, and dates and shows an empty state', async () => {
+    const assignedTickets = tickets.map((ticket) =>
+      ticket.id === 't-esc'
+        ? { ...ticket, assignedTo: 'u-lee', assigneeName: 'Lee Santos' }
+        : ticket
+    );
+    mockApi(
+      staffHandler((call) =>
+        call.path === '/api/tickets'
+          ? { status: 200, body: { tickets: assignedTickets } }
+          : undefined
+      )
+    );
     renderApp('/queue');
     await screen.findByRole('list', { name: 'Tickets' });
 
-    fireEvent.click(screen.getByLabelText('Escalated only'));
+    fireEvent.change(screen.getByLabelText('Status'), {
+      target: { value: 'open' },
+    });
+    fireEvent.change(screen.getByLabelText('Assigned'), {
+      target: { value: 'u-lee' },
+    });
+    fireEvent.change(screen.getByLabelText('Created from'), {
+      target: { value: '2026-11-19' },
+    });
+    fireEvent.change(screen.getByLabelText('Created to'), {
+      target: { value: '2026-11-19' },
+    });
     expect(screen.getAllByRole('link', { name: /TCK-/ })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /TCK-2001/ })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Search'), {
-      target: { value: 'nothing matches this' },
+    fireEvent.change(screen.getByLabelText('Created to'), {
+      target: { value: '2026-11-18' },
     });
     expect(
-      screen.getByText('No tickets match these filters.')
+      await screen.findByText('No tickets match these filters.')
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByRole('list', { name: 'Tickets' })).toBeVisible();
   });
 
   it('saves status and assignment and shows the persisted result', async () => {
@@ -236,6 +263,7 @@ describe('dashboard analytics (S3-06)', () => {
   const summary = {
     range: { from: '2026-10-22T00:00:00.000Z', to: '2026-11-20T23:59:59.999Z' },
     totalTickets: 7,
+    assignedTickets: 4,
     byStatus: {
       new: 2,
       open: 2,
@@ -251,7 +279,7 @@ describe('dashboard analytics (S3-06)', () => {
     resolvedInRange: 2,
   };
 
-  it('renders server-calculated metrics for the selected range', async () => {
+  it('renders assigned, open, and resolved totals for admins', async () => {
     const { calls } = mockApi(
       staffHandler((call) =>
         call.path.startsWith('/api/analytics/summary')
@@ -263,26 +291,117 @@ describe('dashboard analytics (S3-06)', () => {
 
     const tiles = await screen.findByRole('list', { name: 'Key metrics' });
     expect(
-      within(tiles).getByText('Open escalations').previousSibling
+      within(tiles).getByText('Assigned tickets').previousSibling
+    ).toHaveTextContent('4');
+    expect(
+      within(tiles).getByText('Open tickets').previousSibling
+    ).toHaveTextContent('5');
+    expect(
+      within(tiles).getByText('Resolved tickets').previousSibling
+    ).toHaveTextContent('2');
+    expect(within(tiles).queryByText(/in range/)).not.toBeInTheDocument();
+    expect(screen.queryAllByLabelText(/From|To/)).toHaveLength(0);
+    expect(calls.map((call) => call.path)).toContain('/api/analytics/summary');
+  });
+
+  it('shows assigned work but no admin-only metrics for agents', async () => {
+    const assignedTicket = {
+      ...tickets[0],
+      id: 't-assigned',
+      reference: 'TCK-2010',
+      title: 'Assigned VPN issue',
+      assignedTo: profiles.lee.id,
+      assigneeName: 'Lee Santos',
+      conversationId: 'conversation-1',
+    };
+    const agentSummary = {
+      ...summary,
+      totalTickets: 1,
+      assignedTickets: undefined,
+      byStatus: {
+        new: 0,
+        open: 1,
+        in_progress: 0,
+        pending: 0,
+        resolved: 0,
+        closed: 0,
+      },
+      openByPriority: { low: 0, medium: 1, high: 0, urgent: 0 },
+    };
+    const { calls } = mockApi(
+      staffHandler((call) => {
+        if (call.path.startsWith('/api/analytics/summary')) {
+          return { status: 200, body: { summary: agentSummary } };
+        }
+        if (call.path === '/api/tickets') {
+          return { status: 200, body: { tickets: [assignedTicket] } };
+        }
+        if (call.path === `/api/tickets/${assignedTicket.id}`) {
+          return { status: 200, body: { ticket: assignedTicket, audit: [] } };
+        }
+        return undefined;
+      }, profiles.lee)
+    );
+    renderApp('/dashboard');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Agent dashboard' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Queue' })
+    ).not.toBeInTheDocument();
+    const metrics = await screen.findByRole('list', { name: 'Key metrics' });
+    expect(within(metrics).getByText('All tickets')).toBeInTheDocument();
+    expect(within(metrics).getByText('Open tickets')).toBeInTheDocument();
+    expect(within(metrics).getByText('Resolved tickets')).toBeInTheDocument();
+    expect(within(metrics).queryByText(/in range/)).not.toBeInTheDocument();
+    const worklist = await screen.findByRole('list', {
+      name: 'Assigned tickets',
+    });
+    fireEvent.click(within(worklist).getByRole('link', { name: /TCK-2010/ }));
+
+    expect(
+      await screen.findByLabelText('Solution or follow-up')
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Assigned to')).not.toBeInTheDocument();
+    expect(calls.some((call) => call.path === '/api/agents')).toBe(false);
+  });
+
+  it('shows created and resolved totals for employees', async () => {
+    const employeeSummary = {
+      ...summary,
+      totalTickets: 3,
+      byStatus: {
+        new: 1,
+        open: 1,
+        in_progress: 0,
+        pending: 0,
+        resolved: 1,
+        closed: 0,
+      },
+    };
+    mockApi(
+      staffHandler((call) => {
+        if (call.path.startsWith('/api/analytics/summary')) {
+          return { status: 200, body: { summary: employeeSummary } };
+        }
+        if (call.path === '/api/tickets') {
+          return { status: 200, body: { tickets: [] } };
+        }
+        return undefined;
+      }, profiles.dana)
+    );
+    renderApp('/dashboard');
+
+    const tiles = await screen.findByRole('list', { name: 'Key metrics' });
+    expect(
+      within(tiles).getByText('Created tickets').previousSibling
     ).toHaveTextContent('3');
     expect(
-      within(tiles).getByText('Resolved in range').previousSibling
-    ).toHaveTextContent('2');
-    expect(
-      screen.getByRole('table', { name: /Tickets by current status/ })
-    ).toHaveTextContent('7 total');
-
-    fireEvent.change(screen.getByLabelText('From'), {
-      target: { value: '2026-11-01' },
-    });
-    fireEvent.change(screen.getByLabelText('To'), {
-      target: { value: '2026-11-15' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
-    await screen.findByRole('list', { name: 'Key metrics' });
-    expect(calls.map((call) => call.path)).toContain(
-      '/api/analytics/summary?from=2026-11-01&to=2026-11-15'
-    );
+      within(tiles).getByText('Resolved tickets').previousSibling
+    ).toHaveTextContent('1');
+    expect(within(tiles).queryByText('Open tickets')).not.toBeInTheDocument();
+    expect(within(tiles).queryByText(/in range/)).not.toBeInTheDocument();
   });
 
   it('shows the empty state when there are no tickets', async () => {

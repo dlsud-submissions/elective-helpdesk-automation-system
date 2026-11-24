@@ -16,6 +16,8 @@ import type {
   TicketProfileLookup,
   TicketRecord,
   TicketRepository,
+  TicketSolutionDraftRecord,
+  TicketSolutionGenerator,
   TicketStatus,
   ValidatedTicketRequest,
 } from './tickets.types.js';
@@ -30,7 +32,7 @@ export const allowedStatuses: TicketStatus[] = [
 ];
 
 export const validTransitions: Record<TicketStatus, TicketStatus[]> = {
-  new: ['open', 'in_progress'],
+  new: ['open', 'in_progress', 'resolved'],
   open: ['in_progress', 'pending', 'resolved'],
   in_progress: ['pending', 'resolved'],
   pending: ['open', 'resolved'],
@@ -124,13 +126,23 @@ export function assertTransition(from: TicketStatus, to: TicketStatus): void {
 /** Resolves who owns a chat conversation, so tickets can link to it. */
 export type ConversationOwnerLookup = {
   findById(id: string): Promise<{ requesterId: string } | null>;
+  addMessages(
+    messages: Array<{
+      conversationId: string;
+      senderType: 'agent' | 'system';
+      content: string;
+      outcome: null;
+      sourceRefs: never[];
+    }>
+  ): Promise<unknown[]>;
 };
 
 export class TicketService {
   constructor(
     private readonly repository: TicketRepository,
     private readonly profiles: TicketProfileLookup,
-    private readonly conversations?: ConversationOwnerLookup
+    private readonly conversations?: ConversationOwnerLookup,
+    private readonly solutionGenerator?: TicketSolutionGenerator
   ) {}
 
   /**
@@ -174,6 +186,9 @@ export class TicketService {
     > = {},
     idempotencyKey: string = randomUUID()
   ): Promise<TicketRecord> {
+    if (context.role !== 'employee') {
+      throw forbidden('Only employees can create tickets.');
+    }
     const { body, conversationId } = await this.takeConversationId(
       input,
       context
@@ -197,10 +212,13 @@ export class TicketService {
     return result.ticket;
   }
 
-  /** Employees only see their own tickets; agents/admins see the full queue. */
+  /** Employees see requests they created; agents see assigned work; admins see all. */
   async list(context: RequestContext): Promise<TicketRecord[]> {
+    if (context.role === 'admin') return this.repository.list({});
     return this.repository.list(
-      isStaff(context) ? {} : { requesterId: context.userId }
+      context.role === 'agent'
+        ? { assignedTo: context.userId }
+        : { requesterId: context.userId }
     );
   }
 
@@ -215,7 +233,8 @@ export class TicketService {
     // Return 404 rather than 403 so ticket IDs cannot be probed.
     if (
       !ticket ||
-      (!isStaff(context) && ticket.requesterId !== context.userId)
+      (context.role === 'employee' && ticket.requesterId !== context.userId) ||
+      (context.role === 'agent' && ticket.assignedTo !== context.userId)
     ) {
       throw notFound('Ticket not found.');
     }
@@ -223,6 +242,153 @@ export class TicketService {
       ? await this.repository.listAudit(ticket.id)
       : [];
     return { ticket, audit };
+  }
+
+  async reply(
+    ticketId: string,
+    input: unknown,
+    context: RequestContext
+  ): Promise<unknown> {
+    if (!isStaff(context)) {
+      throw forbidden("You don't have permission to reply to this ticket.");
+    }
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+      throw badRequest('Reply request must be an object.');
+    }
+    const body = input as Record<string, unknown>;
+    if (Object.keys(body).some((field) => field !== 'content')) {
+      throw badRequest('Reply request contains an unexpected field.');
+    }
+    if (typeof body.content !== 'string') {
+      throw badRequest('Reply content must be a string.');
+    }
+    const content = body.content.trim();
+    if (content.length < 1 || content.length > 8000) {
+      throw badRequest(
+        'Reply content must contain between 1 and 8000 characters.'
+      );
+    }
+    if (!isUuid(ticketId)) throw notFound('Ticket not found.');
+
+    const ticket = await this.repository.findById(ticketId);
+    if (!ticket) throw notFound('Ticket not found.');
+    if (context.role !== 'admin' && ticket.assignedTo !== context.userId) {
+      throw forbidden('This ticket is not assigned to you.');
+    }
+    if (!ticket.conversationId) {
+      throw badRequest('This ticket is not linked to a chat conversation.');
+    }
+
+    const conversation = await this.conversations?.findById(
+      ticket.conversationId
+    );
+    if (!conversation || conversation.requesterId !== ticket.requesterId) {
+      throw badRequest('The linked chat conversation is not available.');
+    }
+
+    const messages = await this.conversations?.addMessages([
+      {
+        conversationId: ticket.conversationId,
+        senderType: 'agent',
+        content,
+        outcome: null,
+        sourceRefs: [],
+      },
+    ]);
+    if (!messages?.length) {
+      throw new HttpError(
+        503,
+        'service_unavailable',
+        'The reply could not be saved. Please try again.'
+      );
+    }
+
+    await this.repository.recordAudit({
+      ticketId: ticket.id,
+      action: 'ticket.agent_reply',
+      actorId: context.userId,
+      outcome: 'success',
+      summary: `Agent sent a reply in chat for ${ticket.reference}.`,
+    });
+    return messages[0];
+  }
+
+  async generateSolutionDraft(
+    ticketId: string,
+    context: RequestContext
+  ): Promise<{ content: string; model: string }> {
+    const ticket = await this.requireAssignedAgentTicket(ticketId, context);
+    if (!this.solutionGenerator) {
+      throw new HttpError(
+        503,
+        'service_unavailable',
+        'Gemini solution generation is not configured.'
+      );
+    }
+    return {
+      content: await this.solutionGenerator.generate(ticket),
+      model: this.solutionGenerator.model,
+    };
+  }
+
+  async saveSolutionDraft(
+    ticketId: string,
+    input: unknown,
+    context: RequestContext
+  ): Promise<TicketSolutionDraftRecord> {
+    const ticket = await this.requireAssignedAgentTicket(ticketId, context);
+    if (
+      typeof input !== 'object' ||
+      input === null ||
+      Array.isArray(input) ||
+      Object.keys(input).some((key) => key !== 'content')
+    ) {
+      throw badRequest('Solution draft must contain only content.');
+    }
+    const content = (input as Record<string, unknown>).content;
+    if (
+      typeof content !== 'string' ||
+      !content.trim() ||
+      content.length > 8000
+    ) {
+      throw badRequest('Solution draft must contain 1 to 8000 characters.');
+    }
+    if (!this.solutionGenerator) {
+      throw new HttpError(
+        503,
+        'service_unavailable',
+        'Gemini solution storage is not configured.'
+      );
+    }
+    const draft = await this.repository.createSolutionDraft({
+      ticketId: ticket.id,
+      generatedBy: context.userId,
+      content: content.trim(),
+      model: this.solutionGenerator.model,
+    });
+    await this.repository.recordAudit({
+      ticketId: ticket.id,
+      action: 'ticket.gemini_draft_saved',
+      actorId: context.userId,
+      outcome: 'success',
+      summary: `Gemini solution draft saved for ${ticket.reference}.`,
+    });
+    return draft;
+  }
+
+  private async requireAssignedAgentTicket(
+    ticketId: string,
+    context: RequestContext
+  ): Promise<TicketRecord> {
+    if (context.role !== 'agent') {
+      throw forbidden('Only agents can generate or save solution drafts.');
+    }
+    if (!isUuid(ticketId)) throw notFound('Ticket not found.');
+    const ticket = await this.repository.findById(ticketId);
+    if (!ticket || ticket.assignedTo !== context.userId) {
+      throw notFound('Ticket not found.');
+    }
+    return ticket;
   }
 
   async update(
@@ -250,6 +416,12 @@ export class TicketService {
     if (!isUuid(ticketId)) throw notFound('Ticket not found.');
     const ticket = await this.repository.findById(ticketId);
     if (!ticket) throw notFound('Ticket not found.');
+    if (context.role === 'agent' && 'assigneeId' in mutation) {
+      throw forbidden('Only admins can assign tickets.');
+    }
+    if (context.role === 'agent' && ticket.assignedTo !== context.userId) {
+      throw forbidden('This ticket is not assigned to you.');
+    }
 
     if (
       mutation.expectedUpdatedAt !== undefined &&
@@ -283,10 +455,8 @@ export class TicketService {
       }
       if (assigneeId) {
         const assignee = await this.profiles.findById(assigneeId);
-        if (!assignee || assignee.role === 'employee') {
-          throw badRequest(
-            'Tickets can only be assigned to an agent or admin.'
-          );
+        if (!assignee || assignee.role !== 'agent') {
+          throw badRequest('Tickets can only be assigned to an agent.');
         }
       }
       if (assigneeId !== ticket.assignedTo) {
@@ -326,6 +496,28 @@ export class TicketService {
       outcome: 'success',
       summary: `Ticket ${ticket.reference}: ${changes.join(', ')}.`,
     });
+
+    if (
+      patch.assignedTo &&
+      patch.assignedTo !== ticket.assignedTo &&
+      updated.conversationId
+    ) {
+      await this.conversations?.addMessages([
+        {
+          conversationId: updated.conversationId,
+          senderType: 'system',
+          content: [
+            `Ticket ${updated.reference} assigned to ${updated.assigneeName ?? 'an IT agent'}.`,
+            `Title: ${updated.title}`,
+            `Category: ${updated.category}`,
+            `Priority: ${updated.priority}`,
+            `Description: ${updated.escalationSummary ?? updated.description}`,
+          ].join('\n'),
+          outcome: null,
+          sourceRefs: [],
+        },
+      ]);
+    }
 
     return updated;
   }

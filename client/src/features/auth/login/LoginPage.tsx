@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { LoadingState } from '../../../shared/ui/StatusViews';
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { useAuth } from '../AuthProvider';
@@ -48,7 +48,7 @@ export function LoginPage() {
   if (state.status === 'loading') {
     return (
       <main className="page-center">
-        <h1 className="visually-hidden">IT Helpdesk</h1>
+        <h1 className="visually-hidden">Harbor Tickets</h1>
         <LoadingState label="Checking your session…" />
       </main>
     );
@@ -79,7 +79,8 @@ export function LoginPage() {
     }
 
     setSubmitting(true);
-    const result = await signIn(email.trim(), password);
+    const staffOnly = location.pathname === '/staff-login';
+    const result = await signIn(email.trim(), password, staffOnly);
     setSubmitting(false);
     if (!result.ok) setAuthError(result.message);
   }
@@ -87,8 +88,15 @@ export function LoginPage() {
   return (
     <main className="page-center">
       <section className="auth-card" aria-labelledby="login-title">
-        <p className="brand">[AI-HAS] IT Helpdesk</p>
-        <h1 id="login-title">Sign in to get IT help</h1>
+        <p className="brand brand--auth">
+          <img src="/assets/logo.png" alt="" className="brand__logo" />
+          Harbor Tickets
+        </p>
+        <h1 id="login-title">
+          {location.pathname === '/staff-login'
+            ? 'Agent and admin sign in'
+            : 'Sign in to get IT help'}
+        </h1>
 
         {notice && !authError ? (
           <div className="alert alert--info" role="status">
@@ -169,10 +177,16 @@ export function LoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <p className="muted small">
-          Prototype only. Use the fictional test accounts provided by the team.
-        </p>
+        {location.pathname === '/staff-login' ? (
+          <p className="muted small">
+            Employee? <Link to="/login">Use the employee sign-in</Link>
+          </p>
+        ) : (
+          <p className="muted small">
+            New user? <Link to="/signup">Create an account</Link> ·{' '}
+            <Link to="/staff-login">Agent/admin login</Link>
+          </p>
+        )}
       </section>
     </main>
   );

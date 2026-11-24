@@ -161,6 +161,41 @@ describe('filterQueue', () => {
       'old-low',
     ]);
   });
+
+  it('filters by status, assignee, and inclusive creation dates', () => {
+    const result = filterQueue(
+      [
+        ticket({
+          id: 'match',
+          assignedTo: 'u-lee',
+          createdAt: '2026-11-02T18:00:00Z',
+        }),
+        ticket({
+          id: 'unassigned',
+          createdAt: '2026-11-02T08:00:00Z',
+        }),
+        ticket({
+          id: 'other-agent',
+          assignedTo: 'u-ari',
+          createdAt: '2026-11-02T08:00:00Z',
+        }),
+        ticket({
+          id: 'outside-date-range',
+          assignedTo: 'u-lee',
+          createdAt: '2026-11-03T00:00:00Z',
+        }),
+        ticket({ id: 'wrong-status', assignedTo: 'u-lee', status: 'resolved' }),
+      ],
+      {
+        ...defaultFilters,
+        assignedTo: 'u-lee',
+        createdFrom: '2026-11-02',
+        createdTo: '2026-11-02',
+      }
+    );
+
+    expect(result.map((candidate) => candidate.id)).toEqual(['match']);
+  });
 });
 
 describe('apiFetch', () => {

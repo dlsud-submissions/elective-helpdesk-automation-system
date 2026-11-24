@@ -1,7 +1,8 @@
 export { TicketQueuePage } from './ui/TicketQueuePage';
 export { MyTicketsPage } from './ui/MyTicketsPage';
 export { CreateTicketForm } from './ui/CreateTicketForm';
-export { getTicket } from './api/tickets.api';
+export { TicketDetail } from './ui/TicketDetail';
+export { getTicket, listTickets, updateTicket } from './api/tickets.api';
 export {
   filterQueue,
   sortQueue,

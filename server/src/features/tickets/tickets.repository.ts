@@ -8,6 +8,7 @@ import type {
   AuditLogEntry,
   NewAuditEntry,
   NewTicket,
+  NewTicketSolutionDraft,
   TicketListFilter,
   TicketPatch,
   TicketPriority,
@@ -15,6 +16,7 @@ import type {
   TicketCreateResult,
   TicketRepository,
   TicketStatus,
+  TicketSolutionDraftRecord,
 } from './tickets.types.js';
 
 export const formatTicketReference = (ticketNumber: number) =>
@@ -28,6 +30,7 @@ export class InMemoryTicketRepository implements TicketRepository {
   private readonly tickets = new Map<string, TicketRecord>();
   private readonly ticketsByIdempotencyKey = new Map<string, string>();
   private readonly audit: AuditLogEntry[] = [];
+  private readonly solutionDrafts: TicketSolutionDraftRecord[] = [];
   private nextNumber = 2001;
   private clock = 0;
 
@@ -79,11 +82,22 @@ export class InMemoryTicketRepository implements TicketRepository {
     return ticket ? { ...ticket } : null;
   }
 
+  async findByConversationId(
+    conversationId: string
+  ): Promise<TicketRecord | null> {
+    return (
+      [...this.tickets.values()].find(
+        (ticket) => ticket.conversationId === conversationId
+      ) ?? null
+    );
+  }
+
   async list(filter: TicketListFilter): Promise<TicketRecord[]> {
     return [...this.tickets.values()]
       .filter(
         (ticket) =>
-          !filter.requesterId || ticket.requesterId === filter.requesterId
+          (!filter.requesterId || ticket.requesterId === filter.requesterId) &&
+          (!filter.assignedTo || ticket.assignedTo === filter.assignedTo)
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((ticket) => ({ ...ticket }));
@@ -126,6 +140,14 @@ export class InMemoryTicketRepository implements TicketRepository {
   async listAudit(ticketId: string): Promise<AuditLogEntry[]> {
     return this.audit.filter((entry) => entry.ticketId === ticketId);
   }
+
+  async createSolutionDraft(
+    draft: NewTicketSolutionDraft
+  ): Promise<TicketSolutionDraftRecord> {
+    const saved = { ...draft, id: randomUUID(), createdAt: this.now() };
+    this.solutionDrafts.push(saved);
+    return { ...saved };
+  }
 }
 
 type TicketRow = {
@@ -155,6 +177,15 @@ type AuditRow = {
   actor_id: string | null;
   outcome: AuditLogEntry['outcome'];
   summary: string | null;
+  created_at: string;
+};
+
+type SolutionDraftRow = {
+  id: string;
+  ticket_id: string;
+  generated_by: string;
+  content: string;
+  model: string;
   created_at: string;
 };
 
@@ -241,6 +272,18 @@ export class SupabaseTicketRepository implements TicketRepository {
     return data ? toTicket(data) : null;
   }
 
+  async findByConversationId(
+    conversationId: string
+  ): Promise<TicketRecord | null> {
+    const { data, error } = await this.client()
+      .from('tickets')
+      .select(ticketColumns)
+      .eq('conversation_id', conversationId)
+      .maybeSingle<TicketRow>();
+    if (error) throw databaseError(error, 'ticket conversation read');
+    return data ? toTicket(data) : null;
+  }
+
   async list(filter: TicketListFilter): Promise<TicketRecord[]> {
     let query = this.client()
       .from('tickets')
@@ -249,6 +292,7 @@ export class SupabaseTicketRepository implements TicketRepository {
       .limit(1000);
     if (filter.requesterId)
       query = query.eq('requester_id', filter.requesterId);
+    if (filter.assignedTo) query = query.eq('assigned_to', filter.assignedTo);
     const { data, error } = await query.returns<TicketRow[]>();
     if (error) throw databaseError(error, 'ticket list');
     return (data ?? []).map(toTicket);
@@ -304,5 +348,30 @@ export class SupabaseTicketRepository implements TicketRepository {
       summary: row.summary ?? '',
       createdAt: row.created_at,
     }));
+  }
+
+  async createSolutionDraft(
+    draft: NewTicketSolutionDraft
+  ): Promise<TicketSolutionDraftRecord> {
+    const { data, error } = await this.client()
+      .from('ticket_solution_drafts')
+      .insert({
+        ticket_id: draft.ticketId,
+        generated_by: draft.generatedBy,
+        content: draft.content,
+        model: draft.model,
+      })
+      .select('id, ticket_id, generated_by, content, model, created_at')
+      .single<SolutionDraftRow>();
+    if (error || !data)
+      throw databaseError(error, 'ticket solution draft create');
+    return {
+      id: data.id,
+      ticketId: data.ticket_id,
+      generatedBy: data.generated_by,
+      content: data.content,
+      model: data.model,
+      createdAt: data.created_at,
+    };
   }
 }

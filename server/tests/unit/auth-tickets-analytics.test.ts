@@ -71,7 +71,15 @@ describe('auth middleware', () => {
     const verifier: AuthVerifier = {
       verify: async () => ({
         status: 'ok',
-        context: { userId: 'u1', role: 'agent', displayName: 'Agent' },
+        context: {
+          userId: 'u1',
+          email: 'agent@example.test',
+          role: 'agent',
+          displayName: 'Agent',
+          accountStatus: 'active',
+          suspendedUntil: null,
+          banReason: null,
+        },
       }),
     };
     const request = { headers: { authorization: 'Bearer ok' } } as Request;
@@ -103,13 +111,28 @@ describe('auth middleware', () => {
 describe('ticket service', () => {
   const employee = {
     userId: users.dana.id,
+    email: 'dana@example.test',
     role: 'employee' as const,
     displayName: 'Dana Cruz',
+    accountStatus: 'active' as const,
+    suspendedUntil: null,
+    banReason: null,
   };
   const agent = {
     userId: users.lee.id,
+    email: 'lee@example.test',
     role: 'agent' as const,
     displayName: 'Lee Santos',
+    accountStatus: 'active' as const,
+    suspendedUntil: null,
+    banReason: null,
+  };
+  const admin = {
+    ...agent,
+    userId: users.ari.id,
+    email: 'ari@example.test',
+    role: 'admin' as const,
+    displayName: 'Ari Reyes',
   };
   const setup = () =>
     new TicketService(
@@ -126,7 +149,7 @@ describe('ticket service', () => {
     const updated = await service.update(
       ticket.id,
       { assigneeId: users.lee.id },
-      agent
+      admin
     );
     expect(updated.requesterId).toBe(users.dana.id);
     expect(updated.assignedTo).toBe(users.lee.id);
@@ -138,6 +161,7 @@ describe('ticket service', () => {
       { title: 'Laptop', description: 'Broken hinge' },
       employee
     );
+    await service.update(ticket.id, { assigneeId: users.lee.id }, admin);
     await service.update(ticket.id, { status: 'open' }, agent);
     const resolved = await service.update(
       ticket.id,
@@ -162,6 +186,7 @@ describe('ticket service', () => {
       { title: 'A', description: 'B' },
       employee
     );
+    await service.update(ticket.id, { assigneeId: users.lee.id }, admin);
     await expect(
       service.update(ticket.id, { status: 'done' }, agent)
     ).rejects.toThrow('status must be one of');
@@ -232,6 +257,7 @@ describe('analytics', () => {
     );
     expect(summary).toMatchObject({
       totalTickets: 4,
+      assignedTickets: 1,
       openEscalated: 1,
       openUnassigned: 2,
       createdInRange: 3,

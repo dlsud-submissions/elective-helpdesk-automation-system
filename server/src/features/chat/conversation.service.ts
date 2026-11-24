@@ -1,4 +1,9 @@
-import { badRequest, HttpError, notFound } from '../../shared/http/errors.js';
+import {
+  badRequest,
+  forbidden,
+  HttpError,
+  notFound,
+} from '../../shared/http/errors.js';
 import type { AuthContext } from '../auth/index.js';
 import type { ChatAnswer } from './chat.service.js';
 import type {
@@ -18,6 +23,15 @@ const UUID_PATTERN =
 export type AnswerProvider = (
   question: string
 ) => ChatAnswer | Promise<ChatAnswer>;
+
+export type AssignedTicketConversationLookup = {
+  listConversationIdsForAgent(agentId: string): Promise<string[]>;
+  isAssignedToAgent(conversationId: string, agentId: string): Promise<boolean>;
+  isResolvedAndAssignedToAgent(
+    conversationId: string,
+    agentId: string
+  ): Promise<boolean>;
+};
 
 export type SendMessageResult = {
   conversationId: string;
@@ -91,11 +105,68 @@ export class ConversationService {
   constructor(
     private readonly repository: ConversationRepository,
     private readonly answer: AnswerProvider,
-    private readonly timeoutMs = DEFAULT_ANSWER_TIMEOUT_MS
+    private readonly timeoutMs = DEFAULT_ANSWER_TIMEOUT_MS,
+    private readonly assignedTickets?: AssignedTicketConversationLookup
   ) {}
 
   async list(context: AuthContext): Promise<ConversationRecord[]> {
-    return this.repository.listByRequester(context.userId);
+    if (context.role === 'employee') {
+      return this.repository.listByRequester(context.userId);
+    }
+    if (context.role === 'agent' && this.assignedTickets) {
+      const ids = await this.assignedTickets.listConversationIdsForAgent(
+        context.userId
+      );
+      return this.repository.listByIds(ids);
+    }
+    throw forbidden('You do not have access to employee chats.');
+  }
+
+  async listArchived(context: AuthContext): Promise<ConversationRecord[]> {
+    if (context.role !== 'employee') {
+      throw forbidden('Only employees can view archived chats.');
+    }
+    return this.repository.listArchived(context.userId);
+  }
+
+  async rename(
+    conversationId: string,
+    title: unknown,
+    context: AuthContext
+  ): Promise<ConversationRecord> {
+    this.requireEmployee(context);
+    if (typeof title !== 'string') throw badRequest('Title must be a string.');
+    const trimmed = title.trim();
+    if (trimmed.length < 1 || trimmed.length > 120) {
+      throw badRequest('Title must contain between 1 and 120 characters.');
+    }
+    await this.requireOwned(conversationId, context);
+    const updated = await this.repository.rename(conversationId, trimmed);
+    if (!updated) throw notFound('Conversation not found.');
+    return updated;
+  }
+
+  async setArchived(
+    conversationId: string,
+    archived: unknown,
+    context: AuthContext
+  ): Promise<ConversationRecord> {
+    await this.requireEmployeeOrResolvedAgent(context, conversationId);
+    if (typeof archived !== 'boolean') {
+      throw badRequest('archived must be a boolean.');
+    }
+    await this.requireOwned(conversationId, context);
+    const updated = await this.repository.archive(conversationId, archived);
+    if (!updated) throw notFound('Conversation not found.');
+    return updated;
+  }
+
+  async delete(conversationId: string, context: AuthContext): Promise<void> {
+    await this.requireEmployeeOrResolvedAgent(context, conversationId);
+    await this.requireOwned(conversationId, context);
+    if (!(await this.repository.delete(conversationId))) {
+      throw notFound('Conversation not found.');
+    }
   }
 
   async getMessages(
@@ -113,6 +184,7 @@ export class ConversationService {
    * the same text without creating duplicate user messages.
    */
   async send(input: unknown, context: AuthContext): Promise<SendMessageResult> {
+    this.requireEmployee(context);
     if (typeof input !== 'object' || input === null || Array.isArray(input)) {
       throw badRequest('Message request must be an object.');
     }
@@ -205,9 +277,53 @@ export class ConversationService {
       throw notFound('Conversation not found.');
     }
     const conversation = await this.repository.findById(conversationId);
-    if (!conversation || conversation.requesterId !== context.userId) {
+    const employeeOwns =
+      context.role === 'employee' &&
+      conversation?.requesterId === context.userId;
+    const agentAssigned =
+      context.role === 'agent' &&
+      this.assignedTickets &&
+      !conversation?.archivedAt &&
+      (await this.assignedTickets.isAssignedToAgent(
+        conversationId,
+        context.userId
+      ));
+    if (
+      !conversation ||
+      conversation.deletedAt ||
+      (!employeeOwns && !agentAssigned)
+    ) {
       throw notFound('Conversation not found.');
     }
     return conversation;
+  }
+
+  private requireEmployee(context: AuthContext): void {
+    if (context.role !== 'employee') {
+      throw forbidden('Only employees can manage their chats.');
+    }
+  }
+
+  private async requireEmployeeOrResolvedAgent(
+    context: AuthContext,
+    conversationId: string
+  ): Promise<void> {
+    if (context.role === 'employee') {
+      await this.requireOwned(conversationId, context);
+      return;
+    }
+    const conversation = await this.requireOwned(conversationId, context);
+    if (
+      context.role === 'agent' &&
+      !conversation.archivedAt &&
+      this.assignedTickets &&
+      (await this.assignedTickets.isResolvedAndAssignedToAgent(
+        conversationId,
+        context.userId
+      ))
+    ) {
+      return;
+    }
+    throw forbidden('Only resolved assigned chats can be archived or deleted.');
   }
 }

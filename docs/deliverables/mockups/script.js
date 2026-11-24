@@ -1,13 +1,13 @@
 'use strict';
 
-// AI-HAS static UI mockup (S1-12). Plain browser JavaScript, no framework and
+// Harbor Tickets static UI mockup (S1-12). Plain browser JavaScript, no framework and
 // no backend. All data below is fictional and every "API call" is simulated
 // with a timer; nothing leaves the browser and nothing persists on reload.
 
 const ACCOUNTS = {
   'dana.cruz@example.test': { name: 'Dana Cruz', role: 'employee' },
-  'alex.tan@example.test': { name: 'Alex Tan', role: 'agent' },
-  'mika.reyes@example.test': { name: 'Mika Reyes', role: 'admin' },
+  'lee.agent@example.test': { name: 'Lee Santos', role: 'agent' },
+  'ari.admin@example.test': { name: 'Ari Reyes', role: 'admin' },
 };
 
 const HOME_BY_ROLE = {
@@ -380,6 +380,39 @@ function render() {
   if (heading) {
     heading.focus();
   }
+  revealPageSections();
+}
+
+let revealObserver = null;
+
+function revealPageSections() {
+  if (
+    !('IntersectionObserver' in window) ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return;
+  }
+  if (!revealObserver) {
+    revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('reveal-visible');
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08 }
+    );
+  }
+  document
+    .querySelectorAll('.panel, .stat, .ticket-row, .summary-box')
+    .forEach((element) => {
+      if (!element.classList.contains('reveal-visible')) {
+        element.classList.add('reveal-ready');
+        revealObserver.observe(element);
+      }
+    });
 }
 
 function updateChrome() {
@@ -447,7 +480,7 @@ function viewSignIn() {
 
   main.innerHTML = `
     <section class="panel auth-card" aria-labelledby="page-title">
-      <p class="eyebrow">AI-HAS IT Helpdesk</p>
+      <p class="eyebrow">Harbor Tickets IT Helpdesk</p>
       <h1 id="page-title" tabindex="-1">Sign in to get IT help</h1>
       <div id="signin-alert"></div>
       <form id="signin-form" novalidate>
@@ -467,7 +500,7 @@ function viewSignIn() {
         <button type="submit" class="btn btn-primary btn-block" id="signin-submit">Sign in</button>
       </form>
       <div class="note">
-        <p>Prototype only. Fill in a fictional test account (any password works):</p>
+        <p>Fictional test accounts (any password works):</p>
         <ul class="plain-list">${accountButtons}</ul>
       </div>
     </section>`;

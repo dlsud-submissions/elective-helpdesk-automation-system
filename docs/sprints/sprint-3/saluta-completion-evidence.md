@@ -5,19 +5,19 @@
 
 ## Acceptance criteria
 
-| Task  | Criterion                                                              | Evidence                                                                                                                                                                   |
-| :---- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S3-01 | Sign-in/out, session restore, expired session returns to sign-in       | `client/tests/integration/auth.integration.test.tsx`; `tests/e2e/auth.spec.ts`                                                                                             |
-| S3-01 | Role from `public.profiles`; UI guards are UX only; API enforces roles | `server/tests/integration/auth-analytics.integration.test.ts`. The action route now uses the same verifier: `server/tests/integration/chat-escalation.integration.test.ts` |
-| S3-01 | Role-aware navigation, including employee **My tickets**               | `AppShell.tsx` nav; `/tickets` route; `client/tests/integration/escalation-tickets.integration.test.tsx` (employee and agent views)                                        |
-| S3-02 | Ask, see lifecycle, ordered history, sources distinct from answer      | `client/tests/integration/chat.integration.test.tsx`; `tests/e2e/chat.spec.ts`                                                                                             |
-| S3-02 | Empty, loading, failed, retry, uncertain states; no duplicate send     | `chat.integration.test.tsx` (timeout retry, validation, unknown outcome, duplicate send)                                                                                   |
-| S3-02 | Escalate to a human from an uncertain or unhelpful answer              | `EscalationPanel.tsx`; `escalation-tickets.integration.test.tsx`; `tests/e2e/escalation.spec.ts`                                                                           |
-| S3-03 | Documented contract, session token only, configurable API origin       | [API contracts](./api-contracts.md); `client/tests/unit/client-logic.test.ts` (headers, error mapping)                                                                     |
-| S3-03 | Controlled errors for validation, timeout, unauthorized, 429/503       | `client-logic.test.ts` (`rateLimited`, `unavailable`, `tooLarge` kinds); `chat.integration.test.tsx`                                                                       |
-| S3-06 | Agent/admin queue, detail, status/assignment with persisted result     | `client/tests/integration/dashboard.integration.test.tsx`; `tests/e2e/dashboard.spec.ts`                                                                                   |
-| S3-06 | Metrics defined and calculated server-side; denied state for employees | [API contracts: Analytics](./api-contracts.md#analytics-dashboard); `auth-analytics.integration.test.ts`; `tests/e2e/accessibility.spec.ts` (direct navigation denied)     |
-| S3-06 | Responsive and keyboard checks                                         | Done under S4-06: [accessibility evidence](../sprint-4/saluta-accessibility-evidence.md)                                                                                   |
+| Task  | Criterion                                                               | Evidence                                                                                                                                                                   |
+| :---- | :---------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-01 | Sign-in/out, session restore, expired session returns to sign-in        | `client/tests/integration/auth.integration.test.tsx`; `tests/e2e/auth.spec.ts`                                                                                             |
+| S3-01 | Role from `public.profiles`; UI guards are UX only; API enforces roles  | `server/tests/integration/auth-analytics.integration.test.ts`. The action route now uses the same verifier: `server/tests/integration/chat-escalation.integration.test.ts` |
+| S3-01 | Role-aware navigation, including employee **My tickets**                | `AppShell.tsx` nav; `/tickets` route; `client/tests/integration/escalation-tickets.integration.test.tsx` (employee and agent views)                                        |
+| S3-02 | Ask, see lifecycle, ordered history, sources distinct from answer       | `client/tests/integration/chat.integration.test.tsx`; `tests/e2e/chat.spec.ts`                                                                                             |
+| S3-02 | Empty, loading, failed, retry, uncertain states; no duplicate send      | `chat.integration.test.tsx` (timeout retry, validation, unknown outcome, duplicate send)                                                                                   |
+| S3-02 | Create a linked ticket from an uncertain or unhelpful answer            | `escalation-tickets.integration.test.tsx`; `tests/e2e/escalation.spec.ts`                                                                                                  |
+| S3-03 | Documented contract, session token only, configurable API origin        | [API contracts](./api-contracts.md); `client/tests/unit/client-logic.test.ts` (headers, error mapping)                                                                     |
+| S3-03 | Controlled errors for validation, timeout, unauthorized, 429/503        | `client-logic.test.ts` (`rateLimited`, `unavailable`, `tooLarge` kinds); `chat.integration.test.tsx`                                                                       |
+| S3-06 | Admin queue; assigned agent detail and status; admin-only assignment    | `client/tests/integration/dashboard.integration.test.tsx`; `tests/e2e/dashboard.spec.ts`                                                                                   |
+| S3-06 | Role-scoped metrics; admin-only values omitted for employees and agents | [API contracts: Analytics](./api-contracts.md#analytics-dashboard); `auth-analytics.integration.test.ts`; role-route integration tests                                     |
+| S3-06 | Responsive and keyboard checks                                          | Done under S4-06: [accessibility evidence](../sprint-4/saluta-accessibility-evidence.md)                                                                                   |
 
 ## Integration defects fixed
 
@@ -45,7 +45,7 @@ All of the following were run locally and passed:
 ## Limitations and follow-ups
 
 - **E2E not executed here.** This machine has no Docker (so no local Supabase) and no Playwright browsers. The specs need the seeded stack (`E2E_BASE_URL`); S3-07 should run them.
-- **New migration not applied.** `20261118100000_audit_action_tickets.sql` has not been run against a database. Run `npm run supabase:push:dry`, then push, before S3-07.
+- **New migration not applied.** `20261118100000_audit_action_tickets.sql` has not been run against the local database. Run `npm run supabase:push:local` before S3-07.
 - **Idempotency keys are shared across paths (owner: Harvey).** `/api/tickets` and `/api/actions/execute` use the same `(requester_id, idempotency_key)` space. A key used on one path conflicts on the other. The client always generates fresh UUIDs, so this does not happen in the UI.
 - **Agents can read automation runs (owner: Harvey).** The action migration's `automation_runs` read policy also lets agents read runs. The core schema allowed admins only. Confirm this is intended.
 - **Two creation paths differ (owner: Harvey).** Action-created tickets start as `open` with category `other`; `/api/tickets` creates `new` with category `general`.

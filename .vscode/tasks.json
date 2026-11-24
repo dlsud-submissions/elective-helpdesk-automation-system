@@ -243,11 +243,11 @@
       }
     },
     {
-      "label": "▶️ Supabase: Start Local Stack",
+      "label": "▶️ Supabase: Start Local DB (Docker)",
       "type": "npm",
       "script": "supabase:start",
       "path": ".",
-      "detail": "Start the local Supabase stack (requires Docker).",
+      "detail": "Start the local Supabase database and Docker services.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
@@ -278,50 +278,35 @@
       }
     },
     {
-      "label": "🔍 Supabase: Push Migrations (dry run)",
+      "label": "🚀 Supabase: Push Migrations to Local DB",
       "type": "npm",
-      "script": "supabase:push:dry",
+      "script": "supabase:push:local",
       "path": ".",
-      "detail": "List migrations that would be applied to the linked hosted project.",
+      "detail": "Apply pending migrations to the local Docker database.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
-        "reveal": "always",
-        "focus": true
+        "reveal": "always"
       }
     },
     {
-      "label": "🚀 Supabase: Push Migrations",
+      "label": "🚀 Supabase: Push Migrations to Linked Project",
       "type": "npm",
       "script": "supabase:push",
       "path": ".",
-      "detail": "Apply pending migrations to the linked hosted project (asks for confirmation).",
+      "detail": "Apply pending migrations to the currently linked Supabase project. Verify the target before running; the linked project may be production.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
-        "reveal": "always",
-        "focus": true
+        "reveal": "always"
       }
     },
     {
-      "label": "🌍 Supabase: Reset Remote DB",
+      "label": "⚠️ Supabase: Reset Linked DB (DESTRUCTIVE)",
       "type": "npm",
       "script": "supabase:reset",
       "path": ".",
-      "detail": "DESTRUCTIVE: wipes the linked hosted database and reapplies migrations, without the fictional seed.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always",
-        "focus": true
-      }
-    },
-    {
-      "label": "🏠 Supabase: Reset Local DB",
-      "type": "npm",
-      "script": "supabase:reset:local",
-      "path": ".",
-      "detail": "Rebuild the local database from migrations and supabase/seed.sql.",
+      "detail": "DESTRUCTIVE: reset the currently linked remote database to its migrations and run configured seed SQL. Verify the linked project before confirming; it may be production.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
@@ -333,12 +318,23 @@
       "type": "npm",
       "script": "supabase:seed",
       "path": ".",
-      "detail": "Run supabase/seed.sql against the linked hosted project (asks for confirmation; safe to repeat). Push migrations first.",
+      "detail": "Run idempotent supabase/seed.sql against the linked remote project without resetting it. Push migrations first. Creates accounts with a known password; never use production/shared data.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",
-        "reveal": "always",
-        "focus": true
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🏠 Supabase: Reset Local DB",
+      "type": "npm",
+      "script": "supabase:reset:local",
+      "path": ".",
+      "detail": "Rebuild the local database from migrations without running supabase/seed.sql.",
+      "presentation": {
+        "group": "supabase",
+        "panel": "shared",
+        "reveal": "always"
       }
     },
     {
@@ -346,7 +342,7 @@
       "type": "npm",
       "script": "supabase:seed:local",
       "path": ".",
-      "detail": "Run supabase/seed.sql against the local stack (requires supabase start).",
+      "detail": "Run supabase/seed.sql against the local database without resetting it. Apply migrations first.",
       "presentation": {
         "group": "supabase",
         "panel": "shared",

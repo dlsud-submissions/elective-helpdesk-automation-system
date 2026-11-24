@@ -1,160 +1,63 @@
 # Allowlisted Action Contract
 
-> Status: Accepted Sprint 2 contract for Sprint 3 implementation. This is the approved backend validation baseline for action proposals, not a placeholder design note.
+> Status: Current contract for `POST /api/actions/execute`. The endpoint validates a caller-supplied proposal; it does not call an LLM or infer an action from chat.
 
-## Purpose
+## Request
 
-This document defines the system's approved action names, required payload fields, and the server-side validation rules that must be enforced before any action is executed. The frontend and the LLM may propose actions, but the backend remains authoritative.
-
-## Action catalog
-
-### 1. `create_ticket`
-
-**Trigger:** The user reports a problem or asks to open a support case.
-
-**Required input:**
+Every request requires a valid bearer token. The request body contains a `proposal` object and may contain a `context` object:
 
 ```json
 {
-  "action": "create_ticket",
-  "user_id": "employee-123",
-  "category": "hardware",
-  "summary": "Laptop cannot connect to the company Wi-Fi",
-  "priority": "medium",
-  "description": "User reports repeated disconnects after recent VPN client update."
+  "proposal": {
+    "intent": "create_ticket",
+    "confidence": 0.9,
+    "arguments": {
+      "title": "Laptop cannot connect",
+      "description": "The demo device cannot join Wi-Fi.",
+      "category": "network",
+      "priority": "medium"
+    },
+    "reason": "The employee reported a network issue."
+  },
+  "context": {
+    "conversation_id": "88888888-8888-4888-8888-888888888888"
+  }
 }
 ```
 
-**Validation rules:**
+`proposal` must contain only `intent`, `confidence` (0 through 1), `arguments`, and `reason`. Extra keys and unsupported intents are rejected. `context.conversation_id` is optional and, when supplied, must be a UUID.
 
-- `user_id` must match an authenticated user profile.
-- `category` must be one of the approved ticket categories.
-- `summary` and `description` must be non-empty strings.
-- `priority` must be one of the supported values such as `low`, `medium`, or `high`.
-- The backend must create the ticket record and return an ID only after persistence succeeds.
+For writes (`create_ticket`, `escalate_to_human`, and `send_test_notification`), include:
 
-**Success response example:**
+- `X-Action-Confirmed: <intent>` to explicitly confirm the proposed action.
+- `Idempotency-Key: <unique-key>` to safely identify retries.
 
-```json
-{
-  "status": "success",
-  "action": "create_ticket",
-  "ticket_id": "TCK-2048",
-  "status_label": "open"
-}
-```
+Clarification, knowledge-question, and unsupported outcomes return before write confirmation is required.
 
-### 2. `escalate_to_human`
+## Supported intents
 
-**Trigger:** The user asks for a live agent, the model is uncertain, or the request cannot be resolved by approved documentation.
+| Intent                   | Required arguments                                                | Authorization and behavior                                                                                                                                                                                    |
+| :----------------------- | :---------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create_ticket`          | `title`, `description`, `category`, `priority`                    | Employee only. Persists a ticket using the authenticated user's ID; supported categories are `hardware`, `software`, `network`, `account`, and `other`; priorities are `low`, `medium`, and `high`.           |
+| `escalate_to_human`      | `title`, `summary`, `reason`                                      | Employee only. Persists an escalation ticket and returns its queue outcome. Supported reasons are `low_confidence`, `policy_gap`, and `user_requested_agent`.                                                 |
+| `send_test_notification` | `channel`, `message`, and either `ticket_id` or `conversation_id` | Agent or admin only. `channel` must be `simulation`; execution is rejected unless `ENABLE_TEST_NOTIFICATION_SIMULATION=true`. It records a simulated notification and does not send an external notification. |
+| `request_clarification`  | `field_names`, `question`                                         | Returns a pending clarification response without persisting an action. A valid conversation ID is required in `context`.                                                                                      |
+| `knowledge_question`     | None                                                              | Returns `not_actionable`; questions should use the chat API.                                                                                                                                                  |
+| `unsupported`            | Optional `missing_fields`                                         | Returns an unsupported outcome without executing a write.                                                                                                                                                     |
 
-**Required input:**
+The authenticated profile determines identity and role. A proposal cannot select another requester or override server authorization. User-provided text is sanitized before storage.
 
-```json
-{
-  "action": "escalate_to_human",
-  "user_id": "employee-123",
-  "conversation_id": "conv-42",
-  "reason": "low_confidence",
-  "summary": "User cannot resolve Wi-Fi connectivity issue; no approved troubleshooting steps matched."
-}
-```
+## Outcomes and failures
 
-**Validation rules:**
+- Missing required fields return HTTP 422 with `status: "needs_clarification"` and the missing field names.
+- A proposal confidence below `0.5` returns a clarification result rather than executing a write.
+- Missing or mismatched confirmation returns HTTP 409; an invalid/missing idempotency key returns HTTP 400.
+- Invalid proposals return HTTP 400, unauthenticated requests HTTP 401, and unauthorized or disabled simulation actions HTTP 403.
+- Persistence failures return a controlled error and do not claim a successful action or return a success ID.
+- Successful ticket/escalation/simulation writes return HTTP 201 with the persisted ticket/run identifier and status.
 
-- `user_id` must be a recognized authenticated user.
-- `conversation_id` must exist or be created in the current session.
-- `reason` must be a supported escalation cause such as `low_confidence`, `policy_gap`, or `user_requested_agent`.
-- `summary` must clearly describe the issue and any relevant context.
-- The action must queue or create a human-agent follow-up instead of claiming the issue is resolved.
-
-**Success response example:**
-
-```json
-{
-  "status": "success",
-  "action": "escalate_to_human",
-  "escalation_id": "ESC-17",
-  "queue": "IT-agents"
-}
-```
-
-### 3. `request_clarification`
-
-**Trigger:** Required details are absent or the request is ambiguous.
-
-**Required input:**
-
-```json
-{
-  "action": "request_clarification",
-  "conversation_id": "conv-42",
-  "field_names": ["device_type", "error_message"],
-  "question": "Please share the affected device type and the exact error text."
-}
-```
-
-**Validation rules:**
-
-- No privileged or write action is executed.
-- `field_names` and `question` must be present if clarification is required.
-- The system should not mark the request as resolved or successful.
-
-**Success response example:**
-
-```json
-{
-  "status": "pending",
-  "action": "request_clarification",
-  "message": "Please share the affected device type and the exact error text."
-}
-```
-
-### 4. `send_test_notification` (approved demo-only integration)
-
-**Trigger:** Demonstration of a safe notification or test webhook only when explicitly approved.
-
-**Required input:**
-
-```json
-{
-  "action": "send_test_notification",
-  "channel": "slack",
-  "message": "New IT ticket assigned to the queue",
-  "ticket_id": "TCK-2048"
-}
-```
-
-**Validation rules:**
-
-- Integration must be allowlisted and approved for demo testing.
-- `channel` must be one of the approved test channels.
-- `ticket_id` and `message` must be non-empty.
-- The operation is best-effort and must fail safely if the integration is unavailable.
-
-**Failure response example:**
-
-```json
-{
-  "status": "error",
-  "action": "send_test_notification",
-  "error_code": "integration_unavailable",
-  "message": "The notification could not be sent. The ticket was still created, but the external integration failed."
-}
-```
-
-## Shared validation rules
-
-- The backend validates every action before execution.
-- The frontend never sends privileged or real credentials to the browser.
-- Unsupported actions are rejected with an explanatory error or a safe clarification prompt.
-- All write operations should be recorded in an audit event including the action name, initiator, timestamp, and outcome.
-- Duplicate requests should be compared against an existing ticket or escalation record and prevented where feasible.
-
-## Security boundary
-
-This action contract is intentionally limited to simulated or explicitly approved demo flows. Real admin actions such as password resets, role changes, or production provisioning must be excluded unless a separate security review approves the integration.
+This contract describes validation and execution boundaries, not model behavior. Any caller or UI proposing an action must obtain clear user intent and confirmation; backend validation remains authoritative.
 
 ---
 
-[← Workflow Automation](../../10-workflow-automation.md)
+[Workflow Automation](../required/10-workflow-automation.md) · [API Specifications](README.md)

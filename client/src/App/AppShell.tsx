@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { isStaff, useAuth, useProfile } from '../features/auth';
+import { useAuth, useProfile } from '../features/auth';
 
 const roleLabels = { employee: 'Employee', agent: 'Agent', admin: 'Admin' };
 
@@ -43,7 +43,6 @@ function useFocusPageHeadingOnNavigate() {
 export function AppShell() {
   const profile = useProfile();
   const { signOut } = useAuth();
-  const staff = isStaff(profile.role);
   useFocusPageHeadingOnNavigate();
 
   return (
@@ -52,24 +51,44 @@ export function AppShell() {
         Skip to content
       </a>
       <header className="topbar">
-        <span className="brand">[AI-HAS] IT Helpdesk</span>
+        <span className="brand brand--app">
+          <img src="/assets/logo.png" alt="" className="brand__logo" />
+          Harbor Tickets
+        </span>
         <nav aria-label="Main">
           <ul className="nav">
-            <li>
-              <NavLink to="/chat">Chat</NavLink>
-            </li>
-            <li>
-              <NavLink to="/tickets">My tickets</NavLink>
-            </li>
-            {staff ? (
+            {profile.role === 'employee' || profile.role === 'agent' ? (
               <>
                 <li>
-                  <NavLink to="/queue">Queue</NavLink>
+                  <NavLink to="/chat">Chat</NavLink>
                 </li>
                 <li>
-                  <NavLink to="/dashboard">Dashboard</NavLink>
+                  <NavLink to="/tickets">My tickets</NavLink>
                 </li>
               </>
+            ) : null}
+            {profile.role === 'employee' ? (
+              <li>
+                <NavLink to="/archive">Archive</NavLink>
+              </li>
+            ) : null}
+            <li>
+              <NavLink to="/dashboard">Dashboard</NavLink>
+            </li>
+            {profile.role === 'admin' ? (
+              <li>
+                <NavLink to="/queue">Queue</NavLink>
+              </li>
+            ) : null}
+            {profile.role === 'admin' ? (
+              <li>
+                <NavLink to="/admin/users">Users</NavLink>
+              </li>
+            ) : null}
+            {profile.role === 'admin' ? (
+              <li>
+                <NavLink to="/admin/kb-articles">Knowledge Base</NavLink>
+              </li>
             ) : null}
           </ul>
         </nav>
@@ -88,6 +107,27 @@ export function AppShell() {
             Sign out
           </button>
         </div>
+        <NavLink
+          to="/settings"
+          className="topbar__settings"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+            <path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z" />
+          </svg>
+        </NavLink>
       </header>
       <main id="main" className="app-main" tabIndex={-1}>
         <Outlet />
