@@ -48,10 +48,15 @@ The root `package.json` defines the initial command contract for the team:
 - `npm run supabase:link`
 - `npm run supabase:start`
 - `npm run supabase:push:local`
-- `npm run supabase:seed:local` (reset plus seed; destructive to local data)
-- `npm run supabase:reset:local`
+- `npm run supabase:push` (push migrations to the linked remote project; verify the target first)
+- `npm run supabase:seed` (run seed SQL on the linked project without resetting; development only)
+- `npm run supabase:reset:local` (rebuild from migrations without running the seed)
+- `npm run supabase:seed:local` (run seed SQL without resetting; requires migrations first)
+- `npm run supabase:reset` (reset the linked remote project; destructive, development project only)
 
 The corresponding VS Code tasks in `.vscode/tasks.json` delegate to these scripts so the team has one canonical command surface.
+
+Remote commands operate on the project selected by `npm run supabase:link`. Confirm the linked project before pushing migrations. The remote seed creates demo accounts with a known password and must never run against production or shared data. The linked reset drops/recreates remote database state from migrations and runs configured seed SQL; never run it against production or shared data.
 
 ## Docker and Compose
 

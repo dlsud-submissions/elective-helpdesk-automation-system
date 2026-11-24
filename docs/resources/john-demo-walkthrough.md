@@ -1,6 +1,6 @@
 # Harbor Tickets: Fictional Demo Data and Walkthrough
 
-This script uses the local Supabase stack and only fictional demo records. It is intended for a rehearsed local demonstration, not production. The seed provisions three accounts with a shared known password; never apply it to a production project or reuse these credentials elsewhere.
+This script uses the local Supabase stack and only fictional demo records. It is intended for a rehearsed local demonstration, not production. The seed provisions eight accounts with a shared known password, including suspended and banned fixtures for admin workflows; never apply it to a production project or reuse these credentials elsewhere.
 
 ## Reset and start
 
@@ -13,19 +13,25 @@ npm run supabase:start
 # Set the local Supabase URL and keys printed by the CLI in the untracked env files:
 # server/.env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 # client/.env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL=http://localhost:3001
-npm run supabase:reset:local
+npm run supabase:reset:local # applies migrations without seeding
+npm run supabase:seed:local  # seeds the local database without resetting
 npm run dev
 ```
 
-`supabase:reset:local` resets the local database, applies migrations, and runs `supabase/seed.sql`. Repeat it before each rehearsal to restore the same accounts, knowledge, messages, and sample tickets. This is destructive to the local database; do not point it at a shared or production project. Confirm services are healthy at `http://localhost:3001/health` and the UI is available at `http://localhost:5173`.
+Run `supabase:reset:local` to recreate the local database and apply migrations, then run `supabase:seed:local` to load `supabase/seed.sql`. Run both before each rehearsal to restore the same accounts, knowledge, messages, and sample tickets. Reset is destructive to the local database; do not point it at a shared or production project. Confirm services are healthy at `http://localhost:3001/health` and the UI is available at `http://localhost:5173`.
 
 Seeded sign-in accounts (all local-only, fictional; password for each is `Password123!`):
 
-| Account                  | Role     | Landing page    |
-| :----------------------- | :------- | :-------------- |
-| `dana.cruz@example.test` | Employee | Chat            |
-| `lee.agent@example.test` | Agent    | Agent dashboard |
-| `ari.admin@example.test` | Admin    | Ticket queue    |
+| Account                   | Role     | Account state | Landing page                   |
+| :------------------------ | :------- | :------------ | :----------------------------- |
+| `dana.cruz@example.test`  | Employee | Active        | Chat                           |
+| `lee.agent@example.test`  | Agent    | Active        | Agent dashboard                |
+| `ari.admin@example.test`  | Admin    | Active        | Ticket queue                   |
+| `elena.cho@example.test`  | Employee | Active        | Chat and ticket history        |
+| `omar.ali@example.test`   | Employee | Active        | Chat and ticket history        |
+| `jo.kim@example.test`     | Agent    | Active        | Agent queue                    |
+| `priya.shah@example.test` | Employee | Suspended     | Admin account-status view only |
+| `noah.lee@example.test`   | Employee | Banned        | Admin account-status view only |
 
 Never put these sample credentials in hosted configuration, screenshots, submissions visible outside the team, or real environments. Do not seed a hosted project.
 

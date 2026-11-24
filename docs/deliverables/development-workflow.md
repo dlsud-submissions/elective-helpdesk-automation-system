@@ -60,12 +60,15 @@ The Supabase CLI (v3) is a pinned dev dependency, so a global install isn't need
 | `npm run supabase:link`        | hosted | Choose the hosted project to link from an interactive list.                                        |
 | `npm run supabase:start`       | local  | Start the local stack (requires Docker). `supabase:stop` and `supabase:status` are also available. |
 | `npm run supabase:push:local`  | local  | Apply pending migrations to the local Docker database.                                             |
-| `npm run supabase:reset:local` | local  | Rebuild the local database from migrations plus `supabase/seed.sql`.                               |
-| `npm run supabase:seed:local`  | local  | **Destructive:** recreate the local database, apply migrations, and run `supabase/seed.sql`.       |
+| `npm run supabase:push`        | linked | Apply pending migrations to the currently linked remote project. Verify the target first.          |
+| `npm run supabase:seed`        | linked | Run `supabase/seed.sql` without resetting. Development project only; push migrations first.        |
+| `npm run supabase:reset:local` | local  | Rebuild the local database from migrations without running `supabase/seed.sql`.                    |
+| `npm run supabase:seed:local`  | local  | Run `supabase/seed.sql` without resetting; requires migrations to be applied first.                |
+| `npm run supabase:reset`       | linked | **Destructive:** reset the linked remote database, apply migrations, and run configured seed SQL.  |
 
 `supabase:link` opens the CLI project picker in an interactive terminal. To skip the picker, pass the **project ref**: `npm run supabase:link -- --project-ref <ref>`. The ref is the 20-lowercase-letter Project ID from Dashboard → Project Settings → General, not the project name.
 
-The seed creates fictional accounts with the known password `Password123!`. Only run it against a development project, never production. Remote database management commands have been removed from this repository's standard workflow; use the local Docker database for development.
+The seed creates fictional accounts with the known password `Password123!`. Only run it against a development project, never production. Remote commands use the project selected by `supabase:link`; check the linked project before every operation. `supabase:seed` runs the seed SQL without resetting, but still creates accounts with a known password and must never target production or shared data. In particular, `supabase:reset` is destructive and must only be used with a disposable development project. Use the local Docker database for routine development.
 
 ## Docker and Compose
 
