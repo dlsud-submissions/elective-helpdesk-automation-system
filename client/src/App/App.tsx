@@ -10,13 +10,18 @@ import {
   AuthProvider,
   homePathFor,
   LoginPage,
+  SignupPage,
+  LandingPage,
+  SettingsPage,
+  AdminUsersPage,
   RequireAuth,
   RequireRole,
   useAuth,
   useProfile,
 } from '../features/auth';
-import { ChatPage } from '../features/chat';
+import { ArchivePage, ChatPage } from '../features/chat';
 import { DashboardPage } from '../features/dashboard';
+import { KbArticlesPage } from '../features/knowledge/ui/KbArticlesPage';
 import { MyTicketsPage, TicketQueuePage } from '../features/tickets';
 import { AppShell } from './AppShell';
 
@@ -34,7 +39,7 @@ function HomeRedirect() {
 
 function MyTicketsRoute() {
   const profile = useProfile();
-  return <MyTicketsPage userId={profile.id} />;
+  return <MyTicketsPage userId={profile.id} role={profile.role} />;
 }
 
 export function AppRoutes() {
@@ -75,7 +80,10 @@ export function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/staff-login" element={<LoginPage />} />
       <Route
         element={
           <RequireAuth>
@@ -83,24 +91,56 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<HomeRedirect />} />
+        <Route path="/home" element={<HomeRedirect />} />
         {/* Optional segments keep one mounted page while the id changes, so
             chat state and the loaded queue survive navigation. */}
-        <Route path="/chat/:conversationId?" element={<ChatPage />} />
-        <Route path="/tickets/:ticketId?" element={<MyTicketsRoute />} />
         <Route
-          path="/queue/:ticketId?"
+          path="/chat/:conversationId?"
           element={
-            <RequireRole roles={['agent', 'admin']}>
-              <TicketQueuePage />
+            <RequireRole roles={['employee', 'agent']}>
+              <ChatPage />
             </RequireRole>
           }
         />
         <Route
-          path="/dashboard"
+          path="/archive"
           element={
-            <RequireRole roles={['agent', 'admin']}>
-              <DashboardPage />
+            <RequireRole roles={['employee']}>
+              <ArchivePage />
+            </RequireRole>
+          }
+        />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route
+          path="/admin/users"
+          element={
+            <RequireRole roles={['admin']}>
+              <AdminUsersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/tickets/:ticketId?"
+          element={
+            <RequireRole roles={['employee', 'agent']}>
+              <MyTicketsRoute />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/queue/:ticketId?"
+          element={
+            <RequireRole roles={['admin']}>
+              <TicketQueuePage />
+            </RequireRole>
+          }
+        />
+        <Route path="/dashboard/:ticketId?" element={<DashboardPage />} />
+        <Route
+          path="/admin/kb-articles"
+          element={
+            <RequireRole roles={['admin']}>
+              <KbArticlesPage />
             </RequireRole>
           }
         />

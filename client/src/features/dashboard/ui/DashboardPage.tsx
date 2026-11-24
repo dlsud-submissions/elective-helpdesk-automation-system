@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { toApiError, type ApiError } from '../../../shared/api/http';
 import {
   DeniedState,
@@ -14,10 +8,11 @@ import {
   LoadingState,
 } from '../../../shared/ui/StatusViews';
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
+import { useProfile } from '../../auth';
+import { listTickets, TicketDetail, type Ticket } from '../../tickets';
 import {
   getAnalyticsSummary,
   type AnalyticsSummary,
-  type TicketPriorityKey,
   type TicketStatusKey,
 } from '../api/analytics.api';
 
@@ -30,56 +25,39 @@ const statusLabels: Record<TicketStatusKey, string> = {
   closed: 'Closed',
 };
 
-const priorityLabels: Record<TicketPriorityKey, string> = {
-  urgent: 'Urgent',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-};
-
-const isoDay = (date: Date) => date.toISOString().slice(0, 10);
-
-export function defaultRange(now = new Date()) {
-  const from = new Date(now.getTime() - 29 * 86_400_000);
-  return { from: isoDay(from), to: isoDay(now) };
-}
-
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; summary: AnalyticsSummary }
   | { status: 'error'; error: ApiError };
 
 export function DashboardPage() {
-  const [range, setRange] = useState(defaultRange);
-  const [applied, setApplied] = useState(range);
-  const [rangeError, setRangeError] = useState<string | null>(null);
+  const profile = useProfile();
+  const { ticketId } = useParams();
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
-  const rangeErrorId = useId();
-  const fromRef = useRef<HTMLInputElement>(null);
-  useDocumentTitle('Dashboard');
+  useDocumentTitle(ticketId ? 'Assigned ticket' : 'Dashboard');
 
-  const fetchSummary = useCallback(async (value: typeof range) => {
+  const fetchSummary = useCallback(async () => {
     setLoad({ status: 'loading' });
     try {
-      setLoad({ status: 'ready', summary: await getAnalyticsSummary(value) });
+      setLoad({ status: 'ready', summary: await getAnalyticsSummary() });
     } catch (error) {
       setLoad({ status: 'error', error: toApiError(error) });
     }
   }, []);
 
   useEffect(() => {
-    void fetchSummary(applied);
-  }, [applied, fetchSummary]);
+    void fetchSummary();
+  }, [fetchSummary]);
 
-  function onApply(event: FormEvent) {
-    event.preventDefault();
-    if (!range.from || !range.to || range.from > range.to) {
-      setRangeError('Choose a start date on or before the end date.');
-      fromRef.current?.focus();
-      return;
-    }
-    setRangeError(null);
-    setApplied({ ...range });
+  if (ticketId && profile.role === 'agent') {
+    return (
+      <section className="narrow">
+        <Link to="/dashboard" className="back-link back-link--always">
+          <span aria-hidden="true">← </span>Back to dashboard
+        </Link>
+        <TicketDetail ticketId={ticketId} onSaved={() => void fetchSummary()} />
+      </section>
+    );
   }
 
   if (load.status === 'error' && load.error.kind === 'forbidden') {
@@ -88,41 +66,13 @@ export function DashboardPage() {
 
   return (
     <section aria-labelledby="dashboard-title" className="dashboard">
-      <h1 id="dashboard-title">Helpdesk dashboard</h1>
-
-      <form className="filters" onSubmit={onApply} aria-label="Date range">
-        <label className="field field--inline">
-          <span>From</span>
-          <input
-            type="date"
-            ref={fromRef}
-            value={range.from}
-            aria-invalid={Boolean(rangeError)}
-            aria-describedby={rangeError ? rangeErrorId : undefined}
-            onChange={(event) =>
-              setRange({ ...range, from: event.target.value })
-            }
-          />
-        </label>
-        <label className="field field--inline">
-          <span>To</span>
-          <input
-            type="date"
-            value={range.to}
-            aria-invalid={Boolean(rangeError)}
-            aria-describedby={rangeError ? rangeErrorId : undefined}
-            onChange={(event) => setRange({ ...range, to: event.target.value })}
-          />
-        </label>
-        <button type="submit" className="button">
-          Apply
-        </button>
-      </form>
-      {rangeError ? (
-        <p className="field__error" role="alert" id={rangeErrorId}>
-          {rangeError}
-        </p>
-      ) : null}
+      <h1 id="dashboard-title">
+        {profile.role === 'admin'
+          ? 'Helpdesk dashboard'
+          : profile.role === 'agent'
+            ? 'Agent dashboard'
+            : 'Employee dashboard'}
+      </h1>
 
       {load.status === 'loading' ? (
         <LoadingState label="Loading metrics…" />
@@ -130,46 +80,68 @@ export function DashboardPage() {
       {load.status === 'error' ? (
         <ErrorState
           message={load.error.message}
-          onRetry={() => void fetchSummary(applied)}
+          onRetry={() => void fetchSummary()}
         />
       ) : null}
 
       {load.status === 'ready' && load.summary.totalTickets === 0 ? (
         <EmptyState>
-          <p>No tickets yet. Metrics appear once tickets are created.</p>
+          <p>
+            {profile.role === 'agent'
+              ? 'No tickets are assigned to you yet.'
+              : profile.role === 'employee'
+                ? "You haven't created any tickets yet."
+                : 'No tickets yet. Metrics appear once tickets are created.'}
+          </p>
         </EmptyState>
       ) : null}
 
-      {load.status === 'ready' && load.summary.totalTickets > 0 ? (
-        <SummaryView summary={load.summary} />
+      {load.status === 'ready' ? (
+        <SummaryView summary={load.summary} role={profile.role} />
       ) : null}
+      {profile.role === 'admin' ? (
+        <p>
+          <Link to="/queue" className="button button--secondary">
+            Manage ticket queue
+          </Link>
+        </p>
+      ) : (
+        <DashboardWorklist role={profile.role} />
+      )}
     </section>
   );
 }
 
-function SummaryView({ summary }: { summary: AnalyticsSummary }) {
-  const tiles: Array<{ label: string; value: number; hint: string }> = [
-    {
-      label: 'Open escalations',
-      value: summary.openEscalated,
-      hint: 'Escalated from chat and not yet resolved',
-    },
-    {
-      label: 'Open unassigned',
-      value: summary.openUnassigned,
-      hint: 'Not resolved or closed, no assignee',
-    },
-    {
-      label: 'Created in range',
-      value: summary.createdInRange,
-      hint: 'Tickets opened in the selected dates',
-    },
-    {
-      label: 'Resolved in range',
-      value: summary.resolvedInRange,
-      hint: 'Tickets resolved in the selected dates',
-    },
-  ];
+function SummaryView({
+  summary,
+  role,
+}: {
+  summary: AnalyticsSummary;
+  role: 'employee' | 'agent' | 'admin';
+}) {
+  const activeTickets =
+    summary.byStatus.new +
+    summary.byStatus.open +
+    summary.byStatus.in_progress +
+    summary.byStatus.pending;
+  const resolvedTickets = summary.byStatus.resolved + summary.byStatus.closed;
+  const tiles: Array<{ label: string; value: number }> =
+    role === 'admin'
+      ? [
+          { label: 'Assigned tickets', value: summary.assignedTickets ?? 0 },
+          { label: 'Open tickets', value: activeTickets },
+          { label: 'Resolved tickets', value: resolvedTickets },
+        ]
+      : role === 'agent'
+        ? [
+            { label: 'All tickets', value: summary.totalTickets },
+            { label: 'Open tickets', value: activeTickets },
+            { label: 'Resolved tickets', value: resolvedTickets },
+          ]
+        : [
+            { label: 'Created tickets', value: summary.totalTickets },
+            { label: 'Resolved tickets', value: resolvedTickets },
+          ];
 
   return (
     <>
@@ -178,52 +150,87 @@ function SummaryView({ summary }: { summary: AnalyticsSummary }) {
           <li key={tile.label} className="tile">
             <span className="tile__value">{tile.value}</span>
             <span className="tile__label">{tile.label}</span>
-            <span className="muted small">{tile.hint}</span>
           </li>
         ))}
       </ul>
-
-      <div className="tables">
-        <table className="metric-table">
-          <caption>
-            Tickets by current status ({summary.totalTickets} total)
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Status</th>
-              <th scope="col">Tickets</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(Object.keys(statusLabels) as TicketStatusKey[]).map((status) => (
-              <tr key={status}>
-                <th scope="row">{statusLabels[status]}</th>
-                <td>{summary.byStatus[status]}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <table className="metric-table">
-          <caption>Open tickets by priority</caption>
-          <thead>
-            <tr>
-              <th scope="col">Priority</th>
-              <th scope="col">Tickets</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(Object.keys(priorityLabels) as TicketPriorityKey[]).map(
-              (priority) => (
-                <tr key={priority}>
-                  <th scope="row">{priorityLabels[priority]}</th>
-                  <td>{summary.openByPriority[priority]}</td>
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
-      </div>
     </>
+  );
+}
+
+function DashboardWorklist({ role }: { role: 'employee' | 'agent' }) {
+  const [tickets, setTickets] = useState<Ticket[] | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const refresh = useCallback(async () => {
+    setError(null);
+    try {
+      setTickets(await listTickets());
+    } catch (loadError) {
+      setError(toApiError(loadError));
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const agent = role === 'agent';
+  const title = agent ? 'Assigned tickets' : 'My tickets';
+  const destination = (ticket: Ticket) =>
+    agent ? `/dashboard/${ticket.id}` : `/tickets/${ticket.id}`;
+
+  return (
+    <section aria-labelledby="dashboard-worklist-title">
+      <header className="row row--between">
+        <h2 id="dashboard-worklist-title">{title}</h2>
+        {agent ? null : <Link to="/tickets">View all</Link>}
+      </header>
+      {tickets === null && !error ? (
+        <LoadingState
+          label={agent ? 'Loading assigned tickets…' : 'Loading your tickets…'}
+        />
+      ) : null}
+      {error ? (
+        <ErrorState message={error.message} onRetry={() => void refresh()} />
+      ) : null}
+      {tickets?.length === 0 ? (
+        <EmptyState>
+          <p>
+            {agent
+              ? 'No tickets are assigned to you.'
+              : "You haven't created any tickets yet."}
+          </p>
+          {agent ? null : (
+            <Link to="/chat" className="button button--secondary">
+              Ask IT in chat
+            </Link>
+          )}
+        </EmptyState>
+      ) : null}
+      {tickets && tickets.length > 0 ? (
+        <ul className="ticket-list" aria-label={title}>
+          {(agent ? tickets : tickets.slice(0, 5)).map((ticket) => (
+            <li key={ticket.id}>
+              <Link to={destination(ticket)} className="ticket-row">
+                <span className="ticket-row__head">
+                  <strong>{ticket.reference}</strong>
+                  <span className={`badge badge--${ticket.status}`}>
+                    {statusLabels[ticket.status]}
+                  </span>
+                </span>
+                <span className="ticket-row__title">{ticket.title}</span>
+                <span className="muted small">
+                  {agent
+                    ? `Requested by ${ticket.requesterName}`
+                    : ticket.assigneeName
+                      ? `Handled by ${ticket.assigneeName}`
+                      : 'Not yet assigned'}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }

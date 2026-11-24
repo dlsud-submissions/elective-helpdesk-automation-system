@@ -18,7 +18,7 @@ export const priorityLabels: Record<TicketPriority, string> = {
 
 /** Mirrors server transitions for the select; the API remains authoritative. */
 export const validTransitions: Record<TicketStatus, TicketStatus[]> = {
-  new: ['open', 'in_progress'],
+  new: ['open', 'in_progress', 'resolved'],
   open: ['in_progress', 'pending', 'resolved'],
   in_progress: ['pending', 'resolved'],
   pending: ['open', 'resolved'],
@@ -39,17 +39,17 @@ const priorityRank: Record<TicketPriority, number> = {
 };
 
 export type QueueFilters = {
-  search: string;
   status: TicketStatus | 'all' | 'active';
-  escalatedOnly: boolean;
-  unassignedOnly: boolean;
+  assignedTo: string;
+  createdFrom: string;
+  createdTo: string;
 };
 
 export const defaultFilters: QueueFilters = {
-  search: '',
   status: 'active',
-  escalatedOnly: false,
-  unassignedOnly: false,
+  assignedTo: 'all',
+  createdFrom: '',
+  createdTo: '',
 };
 
 const isActive = (status: TicketStatus) =>
@@ -69,7 +69,6 @@ export function filterQueue(
   tickets: Ticket[],
   filters: QueueFilters
 ): Ticket[] {
-  const search = filters.search.trim().toLowerCase();
   return sortQueue(
     tickets.filter((ticket) => {
       if (filters.status === 'active' && !isActive(ticket.status)) return false;
@@ -80,17 +79,18 @@ export function filterQueue(
       ) {
         return false;
       }
-      if (filters.escalatedOnly && !ticket.isEscalated) return false;
-      if (filters.unassignedOnly && ticket.assignedTo) return false;
-      if (
-        search &&
-        ![ticket.reference, ticket.title, ticket.requesterName, ticket.category]
-          .join(' ')
-          .toLowerCase()
-          .includes(search)
-      ) {
+      if (filters.assignedTo === 'unassigned' && ticket.assignedTo !== null)
         return false;
-      }
+      if (
+        filters.assignedTo !== 'all' &&
+        filters.assignedTo !== 'unassigned' &&
+        ticket.assignedTo !== filters.assignedTo
+      )
+        return false;
+      const createdDate = ticket.createdAt.slice(0, 10);
+      if (filters.createdFrom && createdDate < filters.createdFrom)
+        return false;
+      if (filters.createdTo && createdDate > filters.createdTo) return false;
       return true;
     })
   );

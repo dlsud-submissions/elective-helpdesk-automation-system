@@ -36,12 +36,13 @@ export type AuditEntry = {
 export type StaffMember = {
   id: string;
   displayName: string;
-  role: 'agent' | 'admin';
+  role: 'agent';
 };
 
 export type TicketUpdate = {
   status?: TicketStatus;
   assigneeId?: string | null;
+  notes?: string;
   expectedUpdatedAt: string;
 };
 

@@ -21,5 +21,6 @@ export type {
   TicketRecord,
   TicketRepository,
   TicketRequest,
+  TicketSolutionDraftRecord,
   TicketStatus,
 } from './tickets.types.js';

@@ -18,8 +18,12 @@ describe('GET /api/me', () => {
     expect(response.status).toBe(200);
     expect(response.body.profile).toEqual({
       id: users.lee.id,
+      email: 'lee@example.test',
       displayName: 'Lee Santos',
       role: 'agent',
+      accountStatus: 'active',
+      suspendedUntil: null,
+      banReason: null,
     });
   });
 
@@ -44,32 +48,78 @@ describe('GET /api/me', () => {
 describe('GET /api/agents', () => {
   const { app } = createTestApp();
 
-  it('lists staff for agents and denies employees', async () => {
-    const agent = await request(app)
+  it('lists staff only for admins', async () => {
+    const admin = await request(app)
       .get('/api/agents')
-      .set('Authorization', bearer('lee'));
-    expect(agent.status).toBe(200);
+      .set('Authorization', bearer('ari'));
+    expect(admin.status).toBe(200);
     expect(
-      agent.body.agents.map((a: { role: string }) => a.role).sort()
-    ).toEqual(['admin', 'agent']);
+      admin.body.agents.map((a: { role: string }) => a.role).sort()
+    ).toEqual(['agent']);
 
-    const employee = await request(app)
-      .get('/api/agents')
-      .set('Authorization', bearer('dana'));
-    expect(employee.status).toBe(403);
+    for (const user of ['lee', 'dana'] as const) {
+      const response = await request(app)
+        .get('/api/agents')
+        .set('Authorization', bearer(user));
+      expect(response.status).toBe(403);
+    }
   });
 });
 
 describe('GET /api/analytics/summary', () => {
-  it('denies employees', async () => {
+  it('returns employee-owned metrics without admin-only values', async () => {
     const { app } = createTestApp();
+    await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'employee-dashboard-ticket')
+      .send({ title: 'Private request', description: 'Details.' });
     const response = await request(app)
       .get('/api/analytics/summary')
       .set('Authorization', bearer('dana'));
-    expect(response.status).toBe(403);
+
+    expect(response.status).toBe(200);
+    expect(response.body.summary.totalTickets).toBe(1);
+    expect(response.body.summary.assignedTickets).toBeUndefined();
+    expect(response.body.summary.openUnassigned).toBeUndefined();
+    expect(response.body.summary.openEscalated).toBeUndefined();
+    expect(JSON.stringify(response.body.summary)).not.toContain(
+      'Private request'
+    );
   });
 
-  it('returns aggregate counts only for agents', async () => {
+  it('returns agent-assigned metrics without admin-only values', async () => {
+    const { app } = createTestApp();
+    const assigned = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'agent-dashboard-assigned')
+      .send({ title: 'Assigned request', description: 'Details.' });
+    await request(app)
+      .patch(`/api/tickets/${assigned.body.ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
+    await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'agent-dashboard-unassigned')
+      .send({ title: 'Unassigned request', description: 'Details.' });
+
+    const response = await request(app)
+      .get('/api/analytics/summary')
+      .set('Authorization', bearer('lee'));
+
+    expect(response.status).toBe(200);
+    expect(response.body.summary.totalTickets).toBe(1);
+    expect(response.body.summary.assignedTickets).toBeUndefined();
+    expect(response.body.summary.openUnassigned).toBeUndefined();
+    expect(response.body.summary.openEscalated).toBeUndefined();
+    expect(JSON.stringify(response.body.summary)).not.toContain(
+      'Unassigned request'
+    );
+  });
+
+  it('returns admin aggregates including assigned tickets', async () => {
     const { app } = createTestApp();
     for (const [index, priority] of ['high', 'low'].entries()) {
       await request(app)
@@ -79,6 +129,14 @@ describe('GET /api/analytics/summary', () => {
         .send({ title: 'Printer jam', description: 'Paper stuck.', priority });
     }
 
+    const tickets = await request(app)
+      .get('/api/tickets')
+      .set('Authorization', bearer('ari'));
+    await request(app)
+      .patch(`/api/tickets/${tickets.body.tickets[0].id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
+
     const response = await request(app)
       .get('/api/analytics/summary')
       .set('Authorization', bearer('ari'));
@@ -87,9 +145,10 @@ describe('GET /api/analytics/summary', () => {
     const { summary } = response.body;
     expect(summary).toMatchObject({
       totalTickets: 2,
+      assignedTickets: 1,
       createdInRange: 2,
       resolvedInRange: 0,
-      openUnassigned: 2,
+      openUnassigned: 1,
       openEscalated: 0,
     });
     expect(summary.byStatus.new).toBe(2);

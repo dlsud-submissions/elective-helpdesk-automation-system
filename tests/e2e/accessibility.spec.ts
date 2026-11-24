@@ -12,7 +12,7 @@ test.describe('keyboard and responsive checks (S4-06)', () => {
     page,
   }) => {
     await signIn(page, 'employee');
-    await expect(page).toHaveTitle('Chat · IT Helpdesk');
+    await expect(page).toHaveTitle('Chat · Harbor Tickets');
 
     await page.keyboard.press('Tab');
     const skip = page.getByRole('link', { name: 'Skip to content' });
@@ -40,10 +40,9 @@ test.describe('keyboard and responsive checks (S4-06)', () => {
     page,
   }) => {
     await signIn(page, 'agent');
-    await page.getByRole('link', { name: 'Queue' }).click();
-    await expect(page).toHaveTitle('Ticket queue · IT Helpdesk');
+    await expect(page).toHaveTitle('Agent dashboard · Harbor Tickets');
     const firstTicket = page
-      .getByRole('list', { name: 'Tickets' })
+      .getByRole('list', { name: 'Assigned tickets' })
       .getByRole('link')
       .first();
     await firstTicket.focus();
@@ -56,11 +55,11 @@ test.describe('keyboard and responsive checks (S4-06)', () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test('employees are denied staff screens by direct navigation', async ({
+  test('employees are denied the admin queue by direct navigation', async ({
     page,
   }) => {
     await signIn(page, 'employee');
-    await page.goto('/dashboard');
+    await page.goto('/queue');
     await expect(
       page.getByRole('heading', { level: 1, name: 'Access denied' })
     ).toBeVisible();

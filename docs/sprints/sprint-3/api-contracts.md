@@ -1,6 +1,6 @@
 # Sprint 3 API Contracts: Auth, Chat, Tickets, Analytics
 
-> **Status:** Implemented for S3-01, S3-02, S3-03, and S3-06 (owner: Saluta, James). Harvey's S3-04/S3-05 action and escalation work builds on the ticket and chat contracts below. The chat UI calls the action endpoint for "Talk to a person" escalation ([Escalation from chat](#escalation-from-chat)).
+> **Status:** Historical Sprint 3 contract, updated where later implementation changed behavior. See the [current API specification pack](../../deliverables/api-specifications/README.md) for the latest route summary.
 
 All endpoints are served by the Express API (`VITE_API_URL`). JSON field names are camelCase.
 
@@ -10,7 +10,7 @@ All endpoints are served by the Express API (`VITE_API_URL`). JSON field names a
 - Every API request sends `Authorization: Bearer <Supabase access token>`.
 - The API verifies the token with Supabase Auth, then loads the role from `public.profiles`. `user_metadata` is never used for authorization. Identity headers such as `x-user-id` are ignored.
 - Client route guards are for UX only. The API enforces every role check.
-- There is no self-registration in the prototype. The local seed creates fictional accounts (see the README).
+- Employee self-registration is available through Supabase Auth. Admins create staff accounts through the server API; seeded demo accounts remain fictional and local-only.
 
 ## Error shape
 
@@ -38,10 +38,10 @@ Every error response has this shape. Responses from `/api/actions/execute` also 
 
 ## Profile
 
-| Method | Path          | Roles       | Response                                                                   |
-| :----- | :------------ | :---------- | :------------------------------------------------------------------------- |
-| GET    | `/api/me`     | any         | `{ profile: { id, displayName, role } }`                                   |
-| GET    | `/api/agents` | agent/admin | `{ agents: [{ id, displayName, role }] }`, used by the assignment dropdown |
+| Method | Path          | Roles | Response                                                                   |
+| :----- | :------------ | :---- | :------------------------------------------------------------------------- |
+| GET    | `/api/me`     | any   | `{ profile: { id, displayName, role } }`                                   |
+| GET    | `/api/agents` | admin | `{ agents: [{ id, displayName, role }] }`, used by the assignment dropdown |
 
 ## Chat and conversation history
 
@@ -99,15 +99,31 @@ Response `201`:
 | GET    | `/api/conversations`              | `{ conversations: [...] }`, own only, newest first                      |
 | GET    | `/api/conversations/:id/messages` | `{ conversation, messages: [...] }`, oldest first; 404 if not the owner |
 | POST   | `/api/chat/answer`                | S2-06 stateless answer endpoint, now authenticated                      |
+| GET    | `/api/conversations/archived`     | Employee archived conversation list                                     |
+| PATCH  | `/api/conversations/:id`          | Rename or archive/restore a conversation                                |
+| DELETE | `/api/conversations/:id`          | Soft-delete an authorized conversation                                  |
+
+## Knowledge and solution review
+
+| Method | Path                      | Roles         | Behavior                                                       |
+| :----- | :------------------------ | :------------ | :------------------------------------------------------------- |
+| GET    | `/api/knowledge/search`   | Authenticated | Searches curated knowledge sources.                            |
+| GET    | `/api/knowledge/articles` | Admin         | Lists knowledge articles for the admin interface.              |
+| POST   | `/api/kb-submissions`     | Agent         | Submits a problem/solution pair for review.                    |
+| GET    | `/api/kb-submissions`     | Admin         | Lists submissions, optionally filtered by status.              |
+| PATCH  | `/api/kb-submissions/:id` | Admin         | Accepts or denies a submission, optionally with an admin note. |
 
 ## Tickets
 
-| Method | Path               | Roles       | Notes                                                                                                                                                                            |
-| :----- | :----------------- | :---------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/tickets`     | any         | Employees get their own tickets; agent/admin get all                                                                                                                             |
-| POST   | `/api/tickets`     | any         | `{ title ≤120, description ≤5000, category?, priority?, conversationId? }`; requester comes from the token. Requires an `Idempotency-Key` header; unexpected fields are rejected |
-| GET    | `/api/tickets/:id` | any         | `{ ticket, audit }`; audit is only returned to agent/admin; 404 for other users' tickets or malformed IDs                                                                        |
-| PATCH  | `/api/tickets/:id` | agent/admin | `{ status?, assigneeId?, notes?, expectedUpdatedAt? }`                                                                                                                           |
+| Method | Path                                       | Roles       | Notes                                                                                                                                                                            |
+| :----- | :----------------------------------------- | :---------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/tickets`                             | any         | Results are scoped to requester for employees, assigned agent for agents, and all tickets for admins                                                                             |
+| POST   | `/api/tickets`                             | employee    | `{ title ≤120, description ≤5000, category?, priority?, conversationId? }`; requester comes from the token. Requires an `Idempotency-Key` header; unexpected fields are rejected |
+| GET    | `/api/tickets/:id`                         | any         | `{ ticket, audit }`; audit is only returned to agent/admin; 404 for other users' tickets or malformed IDs                                                                        |
+| PATCH  | `/api/tickets/:id`                         | agent/admin | `{ status?, assigneeId?, notes?, expectedUpdatedAt? }`                                                                                                                           |
+| POST   | `/api/tickets/:id/messages`                | agent/admin | Adds an agent reply to the linked conversation.                                                                                                                                  |
+| POST   | `/api/tickets/:id/solution-draft/generate` | agent       | Generates an optional Gemini-backed solution draft.                                                                                                                              |
+| POST   | `/api/tickets/:id/solution-draft`          | agent       | Saves an agent-authored solution draft.                                                                                                                                          |
 
 Ticket fields: `id, reference (TCK-n), title, description, category, priority, status, requesterId, requesterName, assignedTo, assigneeName, isEscalated, conversationId, escalationSummary, resolvedAt, createdAt, updatedAt`.
 
@@ -150,20 +166,23 @@ The action route verifies the session through the same verifier as every other r
 
 ## Analytics (dashboard)
 
-`GET /api/analytics/summary?from=YYYY-MM-DD&to=YYYY-MM-DD` (agent/admin only)
+`GET /api/analytics/summary?from=YYYY-MM-DD&to=YYYY-MM-DD` (all authenticated roles)
 
 - Defaults to the last 30 days. `to` includes the whole day. Dates are UTC. Maximum range is 366 days.
-- The response contains counts only. It includes no ticket text, message content, or requester identity.
+- Employees receive aggregates for tickets they requested; agents receive aggregates for tickets assigned to them; admins receive system-wide aggregates.
+- The dashboard displays current totals by role and does not display date-range metrics.
+- The response contains counts only. It includes no ticket text, message content, or requester identity. `assignedTickets`, `openEscalated`, and `openUnassigned` are returned to admins only.
 
-| Metric            | Definition                                                                           |
-| :---------------- | :----------------------------------------------------------------------------------- |
-| `totalTickets`    | All tickets currently stored, independent of the date range                          |
-| `byStatus`        | Current status distribution of all tickets                                           |
-| `openByPriority`  | Priority distribution of open tickets (status not `resolved` or `closed`)            |
-| `openEscalated`   | Open tickets with `isEscalated = true`                                               |
-| `openUnassigned`  | Open tickets with no assignee                                                        |
-| `createdInRange`  | Tickets whose `createdAt` falls within `[from, to]`                                  |
-| `resolvedInRange` | Tickets whose `resolvedAt` (first move to resolved/closed) falls within `[from, to]` |
+| Metric            | Definition                                                                            |
+| :---------------- | :------------------------------------------------------------------------------------ |
+| `totalTickets`    | Tickets visible to the caller, independent of the date range                          |
+| `assignedTickets` | Admin only: all tickets with an agent assignee, regardless of status                  |
+| `byStatus`        | Current status distribution of tickets visible to the caller                          |
+| `openByPriority`  | Priority distribution of visible open tickets (not `resolved` or `closed`)            |
+| `openEscalated`   | Admin only: visible open tickets with `isEscalated = true`                            |
+| `openUnassigned`  | Admin only: visible open tickets with no assignee                                     |
+| `createdInRange`  | Visible tickets whose `createdAt` falls within `[from, to]`                           |
+| `resolvedInRange` | Visible tickets whose `resolvedAt` (first move to resolved/closed) falls in the range |
 
 Known limitation: metrics are aggregated in the API over up to 1,000 most recent tickets. Move this to a SQL aggregate before the dataset grows past that size.
 

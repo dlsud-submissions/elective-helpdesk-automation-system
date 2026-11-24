@@ -1,21 +1,21 @@
 # Development Workflow and Repository Setup
 
-This document captures the Sprint 1 repository and local-tooling decisions for the elective helpdesk platform. The application source is intentionally deferred until Sprint 2; this repo currently contains the planning and automation stub files required to support the upcoming implementation.
+This document records the Sprint 1 repository and local-tooling decisions for Harbor Tickets. Its statements about future application work are historical planning notes; the current command surface is in the root `package.json` and README.
 
-## Repository layout
+## Repository layout (current)
 
-- Root configuration files: `.gitignore`, `.env.example`, `package.json`, `compose.yaml`
-- Future client app: `client/` (expected Vite + React workspace)
-- Future server app: `server/` (expected Express + TypeScript workspace)
+- Root configuration files: `.gitignore`, `package.json`, `compose.yaml`; workspace environment templates: `client/.env.example`, `server/.env.example`
+- Client application: `client/` (React + TypeScript + Vite)
+- Server application: `server/` (Express + TypeScript)
 - GitHub automation: `.github/`
 - Local editor commands: `.vscode/tasks.json`
 - Project docs: `docs/`
 
-No application source should be created under `client/src/` or `server/src/` during Sprint 1. Those directory paths are reserved for Sprint 2 implementation.
+The original Sprint 1 plan deferred application source to Sprint 2; that implementation is now present. Current product scope and test commands are summarized in the root README.
 
 ## Required tools
 
-- Node.js 20 LTS
+- Node.js 22+
 - npm 10+
 - Docker Engine / Docker Desktop with Compose
 - GitHub access with PR review enabled
@@ -23,7 +23,7 @@ No application source should be created under `client/src/` or `server/src/` dur
 
 ## Environment placeholders
 
-The root `.env.example` contains only the required Gemini placeholders:
+Workspace examples in `client/.env.example` and `server/.env.example` define the current client and server settings, including optional Gemini placeholders:
 
 - `GEMINI_API_KEY`
 - `GEMINI_CHAT_MODEL`
@@ -53,26 +53,23 @@ The corresponding VS Code tasks in `.vscode/tasks.json` delegate to these script
 
 The Supabase CLI (v3) is a pinned dev dependency, so a global install isn't needed. In CLI v3, `db push`, `db reset`, and `db query` target the **local** database unless `--remote` is passed. The scripts below make the target explicit.
 
-| Script                         | Target | What it does                                                                                                   |
-| :----------------------------- | :----- | :------------------------------------------------------------------------------------------------------------- |
-| `npm run supabase:login`       | hosted | Sign in to the CLI (browser flow). Run once per machine.                                                       |
-| `npm run supabase:logout`      | hosted | Remove the CLI access token from this machine.                                                                 |
-| `npm run supabase:link`        | hosted | Choose the hosted project to link from an interactive list.                                                    |
-| `npm run supabase:push:dry`    | hosted | List migrations that would be applied to the linked project.                                                   |
-| `npm run supabase:push`        | hosted | Apply pending migrations to the linked project (asks for confirmation).                                        |
-| `npm run supabase:reset`       | hosted | **Destructive:** wipe and rebuild the linked database from migrations. Never seeds.                            |
-| `npm run supabase:start`       | local  | Start the local stack (requires Docker). `supabase:stop` and `supabase:status` are also available.             |
-| `npm run supabase:reset:local` | local  | Rebuild the local database from migrations plus `supabase/seed.sql`.                                           |
-| `npm run supabase:seed`        | hosted | Run `supabase/seed.sql` against the linked project (asks for confirmation; idempotent). Push migrations first. |
-| `npm run supabase:seed:local`  | local  | Run `supabase/seed.sql` against the local stack (idempotent).                                                  |
+| Script                         | Target | What it does                                                                                       |
+| :----------------------------- | :----- | :------------------------------------------------------------------------------------------------- |
+| `npm run supabase:login`       | hosted | Sign in to the CLI (browser flow). Run once per machine.                                           |
+| `npm run supabase:logout`      | hosted | Remove the CLI access token from this machine.                                                     |
+| `npm run supabase:link`        | hosted | Choose the hosted project to link from an interactive list.                                        |
+| `npm run supabase:start`       | local  | Start the local stack (requires Docker). `supabase:stop` and `supabase:status` are also available. |
+| `npm run supabase:push:local`  | local  | Apply pending migrations to the local Docker database.                                             |
+| `npm run supabase:reset:local` | local  | Rebuild the local database from migrations plus `supabase/seed.sql`.                               |
+| `npm run supabase:seed:local`  | local  | **Destructive:** recreate the local database, apply migrations, and run `supabase/seed.sql`.       |
 
 `supabase:link` opens the CLI project picker in an interactive terminal. To skip the picker, pass the **project ref**: `npm run supabase:link -- --project-ref <ref>`. The ref is the 20-lowercase-letter Project ID from Dashboard → Project Settings → General, not the project name.
 
-The seed creates fictional accounts with the known password `Password123!`. Only run it against a development project, never production. A remote reset uses `--no-seed`; run `npm run supabase:seed` afterwards if you want the demo data back.
+The seed creates fictional accounts with the known password `Password123!`. Only run it against a development project, never production. Remote database management commands have been removed from this repository's standard workflow; use the local Docker database for development.
 
 ## Docker and Compose
 
-The root `compose.yaml` configures a local development layout for future client and server services and keeps the environment variables explicit. It does not inject secrets into image layers. The app containers rely on runtime environment variables and outbound HTTPS access to the hosted Gemini API.
+The root `compose.yaml` configures the current client and server services and keeps environment variables explicit. It does not inject secrets into image layers. Server-side Gemini access, when configured, uses runtime environment variables and outbound HTTPS.
 
 Supabase local services remain the responsibility of the Supabase CLI workflow rather than Docker Compose. This keeps the local database stack consistent with the project's long-term database design.
 

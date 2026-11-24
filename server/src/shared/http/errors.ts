@@ -4,10 +4,12 @@ export type ErrorCode =
   | 'validation_error'
   | 'unauthorized'
   | 'profile_not_found'
+  | 'account_suspended'
   | 'forbidden'
   | 'not_found'
   | 'conflict'
   | 'timeout'
+  | 'rate_limited'
   | 'answer_unavailable'
   | 'service_unavailable'
   | 'internal_error';

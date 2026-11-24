@@ -1,2 +1,2 @@
-export { DashboardPage, defaultRange } from './ui/DashboardPage';
+export { DashboardPage } from './ui/DashboardPage';
 export type { AnalyticsSummary } from './api/analytics.api';

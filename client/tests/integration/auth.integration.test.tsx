@@ -69,6 +69,7 @@ describe('sign-in and role-aware routing (S3-01)', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Dana Cruz')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
 
     const me = calls.find((call) => call.path === '/api/me');
     expect(me?.headers.Authorization).toBe(
@@ -94,7 +95,7 @@ describe('sign-in and role-aware routing (S3-01)', () => {
     expect(fake.auth.signOut).toHaveBeenCalled();
   });
 
-  it('restores a saved session on reload and routes staff home', async () => {
+  it('restores a saved session on reload and routes agents to the dashboard', async () => {
     fake = createFakeSupabase({ session: { access_token: 'saved' } });
     mockApi(
       (call) =>
@@ -106,9 +107,10 @@ describe('sign-in and role-aware routing (S3-01)', () => {
     renderApp('/');
 
     expect(
-      await screen.findByRole('heading', { name: 'Ticket queue' })
+      await screen.findByRole('heading', { name: 'Agent dashboard' })
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull();
   });
 
   it('returns an expired session to sign-in with a clear notice', async () => {
@@ -130,17 +132,92 @@ describe('sign-in and role-aware routing (S3-01)', () => {
     ).toBeInTheDocument();
   });
 
-  it('blocks employees from staff screens through direct navigation', async () => {
+  it('allows employees to open their dashboard with scoped metrics', async () => {
     fake = createFakeSupabase({ session: { access_token: 'saved' } });
-    const { calls } = mockApi(meHandler(profiles.dana));
+    const { calls } = mockApi(
+      (call) =>
+        meHandler(profiles.dana)(call) ??
+        (call.path.startsWith('/api/analytics/summary')
+          ? {
+              status: 200,
+              body: {
+                summary: {
+                  range: {
+                    from: '2026-10-22T00:00:00.000Z',
+                    to: '2026-11-20T23:59:59.999Z',
+                  },
+                  totalTickets: 0,
+                  byStatus: {
+                    new: 0,
+                    open: 0,
+                    in_progress: 0,
+                    pending: 0,
+                    resolved: 0,
+                    closed: 0,
+                  },
+                  openByPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
+                  createdInRange: 0,
+                  resolvedInRange: 0,
+                },
+              },
+            }
+          : call.path === '/api/tickets'
+            ? { status: 200, body: { tickets: [] } }
+            : undefined)
+    );
     renderApp('/dashboard');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Employee dashboard' })
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Open unassigned')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(calls.some((call) => call.path.startsWith('/api/analytics'))).toBe(
+        true
+      )
+    );
+  });
+
+  it('denies employees direct access to the admin queue', async () => {
+    fake = createFakeSupabase({ session: { access_token: 'saved' } });
+    mockApi(meHandler(profiles.dana));
+    renderApp('/queue');
 
     expect(
       await screen.findByRole('heading', { name: 'Access denied' })
     ).toBeInTheDocument();
-    expect(calls.some((call) => call.path.startsWith('/api/analytics'))).toBe(
-      false
-    );
+  });
+
+  it('denies agents direct access to the admin queue', async () => {
+    fake = createFakeSupabase({ session: { access_token: 'saved' } });
+    mockApi(meHandler(profiles.lee));
+    renderApp('/queue');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Access denied' })
+    ).toBeInTheDocument();
+  });
+
+  it('hides and denies admin access to Chat and My tickets', async () => {
+    fake = createFakeSupabase({ session: { access_token: 'saved' } });
+    mockApi(meHandler(profiles.ari));
+    const chat = renderApp('/chat');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Access denied' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Chat' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'My tickets' })
+    ).not.toBeInTheDocument();
+
+    chat.unmount();
+    renderApp('/tickets');
+    expect(
+      await screen.findByRole('heading', { name: 'Access denied' })
+    ).toBeInTheDocument();
   });
 
   it('signs out from the app shell', async () => {

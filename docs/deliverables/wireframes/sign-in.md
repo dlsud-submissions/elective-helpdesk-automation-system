@@ -1,6 +1,6 @@
-# W-01 Sign-in
+# W-01 Sign-in and Registration
 
-> Status: Low-fidelity wireframe for review. Endpoints are proposed, not implemented.
+> Status: Low-fidelity reference. Current routes are implemented in the client and Supabase Auth flow.
 
 Roles: signed-out visitors · Journeys: J1–J6 · Matrix: CI-01
 
@@ -9,7 +9,7 @@ Roles: signed-out visitors · Journeys: J1–J6 · Matrix: CI-01
 ```text
 +--------------------------------------------------+
 |                                                  |
-|               [AI-HAS] IT Helpdesk               |
+|               [Harbor Tickets]                  |
 |                                                  |
 |   Sign in to get IT help                         |
 |                                                  |
@@ -20,6 +20,7 @@ Roles: signed-out visitors · Journeys: J1–J6 · Matrix: CI-01
 |   [ ••••••••••                         ] [Show]  |
 |                                                  |
 |   [            Sign in            ]              |
+|   Create an account                             |
 |                                                  |
 |   Prototype only. Use the fictional test         |
 |   accounts provided by the team.                 |
@@ -38,11 +39,12 @@ Roles: signed-out visitors · Journeys: J1–J6 · Matrix: CI-01
 
 ## Data and actions
 
-| Action           | Interface (proposed)                                    | Data used                    |
-| :--------------- | :------------------------------------------------------ | :--------------------------- |
-| Sign in          | Supabase Auth client, `signInWithPassword` (no Express) | `email`, `password`          |
-| Load own profile | `GET /api/me` with the Supabase access token            | `id`, `display_name`, `role` |
-| Sign out         | Supabase Auth client, `signOut`                         | none                         |
+| Action           | Interface (proposed)                             | Data used                         |
+| :--------------- | :----------------------------------------------- | :-------------------------------- |
+| Sign in          | Supabase Auth client, `signInWithPassword`       | `email`, `password`               |
+| Sign up          | Supabase Auth client, employee self-registration | `email`, `password`, display name |
+| Load own profile | `GET /api/me` with the Supabase access token     | `id`, `display_name`, `role`      |
+| Sign out         | Supabase Auth client, `signOut`                  | none                              |
 
 Only the public Supabase URL and publishable key are used in the browser. No service-role key or Gemini key is ever involved in this screen.
 

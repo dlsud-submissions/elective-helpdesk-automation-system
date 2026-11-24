@@ -1,12 +1,13 @@
 # API Specifications
 
-This directory contains the Sprint 3 handoff contracts for the next implementation phase. These documents capture the approved request and response shapes that the frontend and backend should agree on before chat, auth, ticket, and action work begins.
+This directory documents the implemented Harbor Tickets API surface and its security boundaries. Route behavior is owned by the server implementation; update these notes alongside API changes.
 
 ## Contract pack
 
-- [Auth session contract](./auth-session.md) — signed-in session, role lookup, and logout behavior.
-- [Grounded answer contract](./chat-answer.md) — employee question flow, citations, uncertainty, and escalation handling.
-- [Ticket service contract](./tickets.md) — creation, listing, detail retrieval, and status transitions.
+- [Auth and profile contract](./auth-session.md) — Supabase Auth, profile lookup, user administration, and account status.
+- [Chat and conversation contract](./chat-answer.md) — grounded answers, persisted history, and conversation management.
+- [Ticket service contract](./tickets.md) — role-scoped tickets, replies, solution drafts, and updates.
+- [Knowledge and submission contract](./knowledge-and-submissions.md) — article search and the agent/admin solution-review workflow.
 - [Allowlisted action contract](./allowlisted-actions.md) — safe action proposals and backend validation rules.
 
 ## Working rules
@@ -15,4 +16,4 @@ This directory contains the Sprint 3 handoff contracts for the next implementati
 - Browser code must never receive a Gemini key, privileged database credentials, or raw database details.
 - Source references are included only when retrieved knowledge supports the answer.
 - Unsupported or low-confidence outcomes return a controlled uncertainty or escalation result.
-- All contracts below are intended as implementation-ready guidance for Sprint 3 and should be treated as the canonical interface contract unless a follow-up review explicitly changes them.
+- Contracts are concise documentation, not a substitute for server validation and tests. The server's runtime schemas, services, and route tests are authoritative.

@@ -335,6 +335,9 @@ export function isAuthorizedForIntent(
   user: AuthenticatedUser,
   intent: ActionIntent
 ): boolean {
+  if (intent === 'create_ticket' || intent === 'escalate_to_human') {
+    return user.role === 'employee';
+  }
   if (intent === 'send_test_notification') {
     return user.role === 'agent' || user.role === 'admin';
   }

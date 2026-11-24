@@ -1,4 +1,5 @@
 import { badRequest } from '../../shared/http/errors.js';
+import type { AuthContext } from '../auth/index.js';
 import type {
   TicketPriority,
   TicketRecord,
@@ -16,6 +17,8 @@ export type AnalyticsSummary = {
   range: { from: string; to: string };
   /** All tickets currently in the system, regardless of the date range. */
   totalTickets: number;
+  /** Tickets currently assigned to an agent. Returned to admins only. */
+  assignedTickets: number;
   /** Current status distribution of all tickets. */
   byStatus: Record<TicketStatus, number>;
   /** Priority distribution of open tickets (not resolved or closed). */
@@ -98,6 +101,7 @@ export function summarizeTickets(
     return time >= range.from.getTime() && time <= range.to.getTime();
   };
 
+  let assignedTickets = 0;
   let openEscalated = 0;
   let openUnassigned = 0;
   let createdInRange = 0;
@@ -105,6 +109,7 @@ export function summarizeTickets(
 
   for (const ticket of tickets) {
     byStatus[ticket.status] += 1;
+    if (ticket.assignedTo) assignedTickets += 1;
     if (isOpen(ticket.status)) {
       openByPriority[ticket.priority] += 1;
       if (ticket.isEscalated) openEscalated += 1;
@@ -117,6 +122,7 @@ export function summarizeTickets(
   return {
     range: { from: range.from.toISOString(), to: range.to.toISOString() },
     totalTickets: tickets.length,
+    assignedTickets,
     byStatus,
     openByPriority,
     openEscalated,
@@ -129,8 +135,18 @@ export function summarizeTickets(
 export class AnalyticsService {
   constructor(private readonly tickets: TicketSource) {}
 
-  async summary(query: { from?: unknown; to?: unknown }) {
+  async summary(
+    query: { from?: unknown; to?: unknown },
+    caller: Pick<AuthContext, 'role' | 'userId'>
+  ) {
     const range = parseDateRange(query);
-    return summarizeTickets(await this.tickets.listAll(), range);
+    const tickets = await this.tickets.listAll();
+    const visibleTickets =
+      caller.role === 'admin'
+        ? tickets
+        : caller.role === 'agent'
+          ? tickets.filter((ticket) => ticket.assignedTo === caller.userId)
+          : tickets.filter((ticket) => ticket.requesterId === caller.userId);
+    return summarizeTickets(visibleTickets, range);
   }
 }

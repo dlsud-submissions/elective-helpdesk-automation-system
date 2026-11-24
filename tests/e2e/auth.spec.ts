@@ -16,7 +16,7 @@ test.describe('sign-in and role routing (S3-01)', () => {
     );
   });
 
-  test('employee lands on chat, keeps the session on reload, and cannot open staff screens', async ({
+  test('employee lands on chat, keeps the session on reload, and can open the dashboard', async ({
     page,
   }) => {
     await signIn(page, 'employee');
@@ -26,19 +26,20 @@ test.describe('sign-in and role routing (S3-01)', () => {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Ask IT' })).toBeVisible();
 
-    await page.goto('/dashboard');
+    await page.getByRole('link', { name: 'Dashboard' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Access denied' })
+      page.getByRole('heading', { name: 'Employee dashboard' })
     ).toBeVisible();
+    await expect(page.getByText('Open unassigned')).toHaveCount(0);
   });
 
-  test('employee API calls to staff endpoints are rejected by the backend', async ({
+  test('employee API calls to admin assignment endpoints are rejected by the backend', async ({
     page,
   }) => {
     await signIn(page, 'employee');
     const apiUrl = process.env.E2E_API_URL ?? 'http://localhost:3001';
-    // Bypass the UI guard and call the API directly with the employee's own
-    // session token: the backend must still refuse.
+    // Call the admin-only staff directory with the employee's own session
+    // token: the backend must still refuse.
     const status = await page.evaluate(async (api) => {
       const key = Object.keys(localStorage).find((k) =>
         k.endsWith('-auth-token')
@@ -46,7 +47,7 @@ test.describe('sign-in and role routing (S3-01)', () => {
       const token = key
         ? JSON.parse(localStorage.getItem(key)!).access_token
         : '';
-      const response = await fetch(`${api}/api/analytics/summary`, {
+      const response = await fetch(`${api}/api/agents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       return response.status;

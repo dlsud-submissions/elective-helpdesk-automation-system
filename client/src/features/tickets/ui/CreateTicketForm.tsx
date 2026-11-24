@@ -98,6 +98,10 @@ export function CreateTicketForm({
       <h2 id={ids.heading} ref={headingRef} tabIndex={-1}>
         Create a ticket
       </h2>
+      <p className="muted">
+        An admin can assign it to an IT agent. The agent's replies will appear
+        in this chat, and you can track the ticket in My tickets.
+      </p>
       <div className="field">
         <label htmlFor={ids.title}>Title</label>
         <input
