@@ -32,6 +32,7 @@ export function createTicketRouter(deps: {
 
   router.post(
     '/api/tickets',
+    requireRole('employee'),
     handle(async (request, response) => {
       const ticket = await tickets.create(
         request.body,
@@ -51,6 +52,47 @@ export function createTicketRouter(deps: {
         getAuth(request)
       );
       response.json(result);
+    })
+  );
+
+  router.post(
+    '/api/tickets/:ticketId/solution-draft/generate',
+    requireRole('agent'),
+    handle(async (request, response) => {
+      response.json({
+        solution: await tickets.generateSolutionDraft(
+          routeId(request.params.ticketId),
+          getAuth(request)
+        ),
+      });
+    })
+  );
+
+  router.post(
+    '/api/tickets/:ticketId/solution-draft',
+    requireRole('agent'),
+    handle(async (request, response) => {
+      response.status(201).json({
+        draft: await tickets.saveSolutionDraft(
+          routeId(request.params.ticketId),
+          request.body,
+          getAuth(request)
+        ),
+      });
+    })
+  );
+
+  router.post(
+    '/api/tickets/:ticketId/messages',
+    requireRole('agent', 'admin'),
+    handle(async (request, response) => {
+      response.status(201).json({
+        message: await tickets.reply(
+          routeId(request.params.ticketId),
+          request.body,
+          getAuth(request)
+        ),
+      });
     })
   );
 

@@ -91,151 +91,12 @@ async function askUncertain() {
   await screen.findByText('No approved procedure found');
 }
 
-describe('chat escalation to a human agent (S3-02/S3-03 with S3-05)', () => {
+describe('chat tickets and employee ticket view', () => {
   beforeEach(() => {
     fake = createFakeSupabase({ session: { access_token: 'dana-token' } });
   });
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  it('confirms, escalates with the confirmation header, and shows the persisted reference', async () => {
-    const { calls } = mockApi(
-      employeeApi((call) => {
-        if (call.path === '/api/chat/messages') {
-          return {
-            status: 201,
-            body: reply(
-              'Printer shows offline',
-              'escalation_suggested',
-              'I could not find an approved procedure.'
-            ),
-          };
-        }
-        if (call.path === '/api/actions/execute') {
-          return {
-            status: 201,
-            body: {
-              status: 'success',
-              action: 'escalate_to_human',
-              ticket_id: ESCALATED_ID,
-              status_label: 'escalated',
-              queue: 'IT-agents',
-            },
-          };
-        }
-        if (call.path === `/api/tickets/${ESCALATED_ID}`) {
-          return { status: 200, body: { ticket: ticket(), audit: [] } };
-        }
-        return undefined;
-      })
-    );
-    renderApp('/chat');
-    await askUncertain();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Talk to a person' }));
-
-    // Nothing is sent until the employee confirms.
-    expect(calls.some((call) => call.path === '/api/actions/execute')).toBe(
-      false
-    );
-    const heading = screen.getByRole('heading', {
-      name: 'Talk to an IT agent',
-    });
-    expect(heading).toHaveFocus();
-    const summary = screen.getByLabelText<HTMLTextAreaElement>(
-      'Summary for the agent'
-    );
-    expect(summary.value).toContain('Employee question: Printer shows offline');
-    expect(summary.value).toContain('no approved procedure was found');
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Send to an IT agent' })
-    );
-
-    const status = await screen.findByText(/Sent to an IT agent as TCK-2051/);
-    expect(status.closest('[role="status"]')).toHaveFocus();
-
-    const execute = calls.filter(
-      (call) => call.path === '/api/actions/execute'
-    );
-    expect(execute).toHaveLength(1);
-    expect(execute[0]!.headers).toMatchObject({
-      Authorization: 'Bearer dana-token',
-      'X-Action-Confirmed': 'escalate_to_human',
-    });
-    expect(execute[0]!.headers['Idempotency-Key']).toBeTruthy();
-    expect(execute[0]!.body).toMatchObject({
-      proposal: {
-        intent: 'escalate_to_human',
-        arguments: { reason: 'low_confidence', title: 'Printer shows offline' },
-      },
-      context: { conversation_id: CONVERSATION_ID },
-    });
-  });
-
-  it('shows a failure without claiming success and retries with the same key', async () => {
-    let attempt = 0;
-    const { calls } = mockApi(
-      employeeApi((call) => {
-        if (call.path === '/api/chat/messages') {
-          return {
-            status: 201,
-            body: reply(
-              'Printer shows offline',
-              'escalation_suggested',
-              'I could not find an approved procedure.'
-            ),
-          };
-        }
-        if (call.path === '/api/actions/execute') {
-          attempt += 1;
-          return attempt === 1
-            ? {
-                status: 502,
-                body: {
-                  status: 'error',
-                  error:
-                    'The action could not be completed. No successful outcome is available.',
-                  code: 'action_failed',
-                },
-              }
-            : {
-                status: 201,
-                body: {
-                  status: 'success',
-                  ticket_id: ESCALATED_ID,
-                  queue: 'IT-agents',
-                },
-              };
-        }
-        if (call.path === `/api/tickets/${ESCALATED_ID}`) {
-          return { status: 200, body: { ticket: ticket(), audit: [] } };
-        }
-        return undefined;
-      })
-    );
-    renderApp('/chat');
-    await askUncertain();
-    fireEvent.click(screen.getByRole('button', { name: 'Talk to a person' }));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Send to an IT agent' })
-    );
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('not sent to an agent yet');
-    expect(
-      screen.queryByText(/Sent to an IT agent as/)
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    await screen.findByText(/Sent to an IT agent as TCK-2051/);
-
-    const keys = calls
-      .filter((call) => call.path === '/api/actions/execute')
-      .map((call) => call.headers['Idempotency-Key']);
-    expect(keys).toHaveLength(2);
-    expect(keys[0]).toBe(keys[1]);
   });
 
   it('links a ticket created from chat to the conversation', async () => {
@@ -349,7 +210,7 @@ describe('my tickets (employee ticket view)', () => {
     expect(rows[0]).toHaveTextContent('Sent to an agent');
     expect(rows[1]).toHaveTextContent('Resolved');
     await waitFor(() =>
-      expect(document.title).toBe('My tickets · IT Helpdesk')
+      expect(document.title).toBe('My tickets · Harbor Tickets')
     );
 
     fireEvent.click(rows[0]!);
@@ -388,7 +249,7 @@ describe('my tickets (employee ticket view)', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows only the staff member’s own tickets for agents', async () => {
+  it('shows an agent tickets assigned to them, not tickets they requested', async () => {
     fake = createFakeSupabase({ session: { access_token: 'lee-token' } });
     mockApi(
       (call) =>
@@ -398,11 +259,18 @@ describe('my tickets (employee ticket view)', () => {
               status: 200,
               body: {
                 tickets: [
-                  ticket(),
                   ticket({
                     id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
                     reference: 'TCK-3000',
+                    requesterId: profiles.dana.id,
+                    assignedTo: profiles.lee.id,
+                    assigneeName: 'Lee Santos',
+                  }),
+                  ticket({
+                    id: '99999999-9999-4999-8999-999999999999',
+                    reference: 'TCK-3001',
                     requesterId: profiles.lee.id,
+                    assignedTo: profiles.ari.id,
                   }),
                 ],
               },
@@ -410,8 +278,14 @@ describe('my tickets (employee ticket view)', () => {
           : undefined)
     );
     renderApp('/tickets');
-    const list = await screen.findByRole('list', { name: 'Your tickets' });
+    const list = await screen.findByRole('list', { name: 'Assigned tickets' });
     expect(within(list).getAllByRole('link')).toHaveLength(1);
     expect(list).toHaveTextContent('TCK-3000');
+    expect(list).not.toHaveTextContent('TCK-3001');
+    expect(within(list).getByRole('link')).toHaveAttribute(
+      'href',
+      '/dashboard/ffffffff-ffff-4fff-8fff-ffffffffffff'
+    );
+    expect(screen.queryByRole('link', { name: 'Ask IT in chat' })).toBeNull();
   });
 });

@@ -1,34 +1,36 @@
 # 4. Scope & Limitations
 
-> **Scope note:** The final included features should be confirmed by the team and instructor. The items below are proposed draft boundaries.
+> **Status:** This scope describes the implemented prototype. Deployment and hosted-service claims remain environment-dependent.
 
-## Included in the Proposed Prototype
+## Included
 
-- Employee-facing chat interface for IT questions.
+- Employee landing, sign-in/sign-up, profile settings, and chat interface for IT questions.
 - Curated knowledge base of fictional IT support procedures.
-- RAG-based retrieval and AI responses grounded in retrieved content, with citations or source titles where feasible.
-- Ticket creation, listing, status updates, and escalation to a human support queue.
-- Basic admin views for knowledge-base management and support metrics.
-- Controlled function calling for explicitly allowlisted actions.
-- User sign-in through Supabase Auth, with application profiles linked to `auth.users`.
-- Input validation, role-based authorization for protected operations, audit events, and basic prompt-injection defenses.
-- Automated tests for API endpoints, business logic, and key UI behavior.
+- Grounded chat answers with source references and safe insufficient-context responses.
+- Conversation history and rename, archive, restore, and delete operations.
+- Ticket creation, requester views, agent assignment and status changes, linked agent replies, and human escalation.
+- Agent-generated ticket solution drafts, with optional Gemini generation and persistent draft history.
+- Agent-submitted knowledge pairs reviewed through an admin accept/deny queue.
+- Admin knowledge-article management, account creation/status management, and operational dashboards.
+- Supabase Auth, trusted application profiles, role-based API authorization, RLS, and audit records.
+- Automated client, server, integration, security, and browser E2E test suites.
 
 ## Excluded or Limited in the Initial Prototype
 
 - Connection to a real corporate Active Directory, identity provider, or production ServiceNow/Jira instance unless access is explicitly provided.
 - Real password changes, account provisioning, or software installation on employee devices. These are simulated or represented by safe demo workflows unless an approved test integration is available.
 - Guaranteed resolution of every support issue, or fully autonomous handling of sensitive requests.
-- Training a custom foundation model. The project uses the hosted Gemini API for chat and embeddings; the selected chat model is `gemini-2.5-flash` and the embedding model is `gemini-embedding-001` (1536 dimensions); see [Gemini API Configuration](08-gemini-configuration.md).
+- Training a custom foundation model. Gemini use is optional and server-side for ticket-solution drafts; chat answers currently use the local grounded-answer implementation.
 - Production-grade uptime, enterprise-scale load, and compliance certification.
 - Use of real employee personal data or secrets in prompts, logs, or demo datasets.
 - Dependence on a third-party hosted API means quota limits and availability are outside the team's control; only fictional data may be sent under the free-tier terms.
 
-## To Confirm
+## Limitations
 
-- Final scope and acceptance criteria agreed by all four members.
-- Whether Jira, ServiceNow, n8n, or another integration will be available; otherwise use a clearly labelled simulation.
-- Whether Gemini API free-tier quota is sufficient for development and demo day.
+- No production identity-directory, ServiceNow, Jira, or device-management integration is included.
+- Chat retrieval and answer generation are bounded to the curated local knowledge set; they are not a hosted-model RAG measurement.
+- Gemini quota and availability affect only workflows that invoke the configured provider, including optional solution drafting.
+- E2E, hosted migration, RLS, latency, and quota evidence depends on the corresponding infrastructure being available.
 
 ---
 

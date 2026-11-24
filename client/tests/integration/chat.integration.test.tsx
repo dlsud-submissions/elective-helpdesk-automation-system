@@ -202,6 +202,140 @@ describe('employee chat (S3-02, S3-03)', () => {
     ).toBeInTheDocument();
   });
 
+  it('lets agents resolve assigned tickets from chat before archiving or deleting', async () => {
+    fake = createFakeSupabase({ session: { access_token: 'lee-token' } });
+    const conversationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const assignedTicket = {
+      id: 't-assigned',
+      reference: 'TCK-2010',
+      title: 'VPN drops on home network',
+      description: 'VPN disconnects every 10 minutes.',
+      category: 'network',
+      priority: 'high',
+      status: 'open',
+      requesterId: profiles.dana.id,
+      requesterName: 'Dana Cruz',
+      assignedTo: profiles.lee.id,
+      assigneeName: 'Lee Santos',
+      isEscalated: false,
+      conversationId,
+      escalationSummary: null,
+      resolvedAt: null,
+      createdAt: '2026-11-20T10:00:00.000Z',
+      updatedAt: '2026-11-20T10:00:00.000Z',
+    };
+    const assignedConversation = {
+      id: conversationId,
+      title: assignedTicket.title,
+      createdAt: assignedTicket.createdAt,
+      updatedAt: assignedTicket.updatedAt,
+      archivedAt: null,
+      deletedAt: null,
+    };
+    const { calls } = mockApi(
+      (call) =>
+        meHandler(profiles.lee)(call) ??
+        (call.path === '/api/conversations'
+          ? {
+              status: 200,
+              body: { conversations: [assignedConversation] },
+            }
+          : undefined) ??
+        (call.path === '/api/tickets'
+          ? { status: 200, body: { tickets: [assignedTicket] } }
+          : undefined) ??
+        (call.path === `/api/conversations/${conversationId}/messages`
+          ? {
+              status: 200,
+              body: {
+                conversation: assignedConversation,
+                messages: [
+                  {
+                    id: 'm-assignment',
+                    conversationId,
+                    senderType: 'system',
+                    content:
+                      'Ticket TCK-2010 assigned to Lee Santos.\nTitle: VPN drops on home network\nDescription: VPN disconnects every 10 minutes.',
+                    outcome: null,
+                    sourceRefs: [],
+                    createdAt: '2026-11-20T10:01:00.000Z',
+                  },
+                ],
+              },
+            }
+          : undefined) ??
+        (call.method === 'PATCH'
+          ? {
+              status: 200,
+              body: {
+                ticket: {
+                  ...assignedTicket,
+                  status: 'resolved',
+                  resolvedAt: '2026-11-20T10:02:00.000Z',
+                  updatedAt: '2026-11-20T10:02:00.000Z',
+                },
+              },
+            }
+          : undefined)
+    );
+    renderApp('/chat');
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Assigned customer chats',
+    });
+
+    const conversationLink = await within(sidebar).findByRole('link', {
+      name: 'VPN drops on home network',
+    });
+    expect(conversationLink).toHaveAttribute('href', `/chat/${conversationId}`);
+    expect(
+      screen.queryByLabelText('Describe your IT issue')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'New chat' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Chat actions for/ })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(conversationLink);
+    expect(
+      await screen.findByRole('article', { name: 'Ticket details' })
+    ).toHaveTextContent('TCK-2010');
+    expect(
+      screen.getByRole('button', { name: 'Mark ticket as resolved' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: `Chat actions for ${assignedTicket.title}`,
+      })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Mark ticket as resolved' })
+    );
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === 'PATCH')).toBe(true)
+    );
+    expect(calls.find((call) => call.method === 'PATCH')?.path).toBe(
+      '/api/tickets/t-assigned'
+    );
+    expect(await screen.findByText('Ticket resolved.')).toBeInTheDocument();
+    fireEvent.click(
+      await within(sidebar).findByRole('button', {
+        name: `Chat actions for ${assignedTicket.title}`,
+      })
+    );
+    expect(
+      within(sidebar).getByRole('button', { name: 'Archive' })
+    ).toBeInTheDocument();
+    expect(
+      within(sidebar).getByRole('button', { name: 'Delete' })
+    ).toBeInTheDocument();
+    expect(
+      within(sidebar).queryByRole('button', { name: 'Rename' })
+    ).not.toBeInTheDocument();
+  });
+
   it('shows a retryable error on timeout and retries the same text', async () => {
     let attempts = 0;
     const { calls } = mockApi(

@@ -50,6 +50,19 @@ describe('ticket endpoints', () => {
     expect(response.body.ticket.reference).toMatch(/^TCK-\d+$/);
   });
 
+  it('prevents agents and admins from creating tickets', async () => {
+    for (const user of ['lee', 'ari'] as const) {
+      const response = await request(app)
+        .post('/api/tickets')
+        .set('Authorization', bearer(user))
+        .set('Idempotency-Key', randomUUID())
+        .send({ title: 'VPN issue', description: 'Connection fails.' });
+
+      expect(response.status).toBe(403);
+      expect(response.body.code).toBe('forbidden');
+    }
+  });
+
   it('ignores spoofed identity headers', async () => {
     const response = await request(app)
       .post('/api/tickets')
@@ -92,7 +105,7 @@ describe('ticket endpoints', () => {
       (
         await request(app)
           .get(`/api/tickets/${first.body.ticket.id}`)
-          .set('Authorization', bearer('lee'))
+          .set('Authorization', bearer('ari'))
       ).body.audit
     ).toHaveLength(1);
   });
@@ -113,7 +126,7 @@ describe('ticket endpoints', () => {
     const ticket = (await createTicket()).body.ticket;
     const response = await request(app)
       .patch(`/api/tickets/${ticket.id}`)
-      .set('Authorization', bearer('lee'))
+      .set('Authorization', bearer('ari'))
       .send({ status: 'open', admin: true });
 
     expect(response.status).toBe(400);
@@ -123,14 +136,14 @@ describe('ticket endpoints', () => {
       (
         await request(app)
           .get(`/api/tickets/${ticket.id}`)
-          .set('Authorization', bearer('lee'))
+          .set('Authorization', bearer('ari'))
       ).body.ticket.status
     ).toBe('new');
   });
 
   it('scopes employee reads to their own tickets', async () => {
     const danaTicket = (await createTicket('dana')).body.ticket;
-    await createTicket('sam');
+    const samTicket = (await createTicket('sam')).body.ticket;
 
     const danaList = await request(app)
       .get('/api/tickets')
@@ -142,10 +155,20 @@ describe('ticket endpoints', () => {
       .set('Authorization', bearer('sam'));
     expect(samRead.status).toBe(404);
 
+    const unassignedAgentRead = await request(app)
+      .get(`/api/tickets/${samTicket.id}`)
+      .set('Authorization', bearer('lee'));
+    expect(unassignedAgentRead.status).toBe(404);
+
+    await request(app)
+      .patch(`/api/tickets/${danaTicket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
     const agentList = await request(app)
       .get('/api/tickets')
       .set('Authorization', bearer('lee'));
-    expect(agentList.body.tickets).toHaveLength(2);
+    expect(agentList.body.tickets).toHaveLength(1);
+    expect(agentList.body.tickets[0].id).toBe(danaTicket.id);
   });
 
   it('forbids employees from updating tickets', async () => {
@@ -160,13 +183,19 @@ describe('ticket endpoints', () => {
     expect(response.body.code).toBe('forbidden');
   });
 
-  it('lets agents update status and assignment and records audit', async () => {
+  it('lets admins assign tickets and assigned agents update status', async () => {
     const ticket = (await createTicket('dana')).body.ticket;
+
+    const assigned = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
+    expect(assigned.status).toBe(200);
 
     const response = await request(app)
       .patch(`/api/tickets/${ticket.id}`)
       .set('Authorization', bearer('lee'))
-      .send({ status: 'in_progress', assigneeId: users.lee.id });
+      .send({ status: 'in_progress' });
 
     expect(response.status).toBe(200);
     expect(response.body.ticket).toMatchObject({
@@ -181,11 +210,15 @@ describe('ticket endpoints', () => {
       .set('Authorization', bearer('lee'));
     expect(
       detail.body.audit.map((entry: { action: string }) => entry.action)
-    ).toEqual(['ticket.created', 'ticket.status_updated']);
+    ).toEqual(['ticket.created', 'ticket.updated', 'ticket.status_updated']);
   });
 
   it('enforces legal status transitions', async () => {
     const ticket = (await createTicket('dana')).body.ticket;
+    await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
 
     const response = await request(app)
       .patch(`/api/tickets/${ticket.id}`)
@@ -201,10 +234,32 @@ describe('ticket endpoints', () => {
 
     const response = await request(app)
       .patch(`/api/tickets/${ticket.id}`)
-      .set('Authorization', bearer('lee'))
+      .set('Authorization', bearer('ari'))
       .send({ assigneeId: users.sam.id });
 
     expect(response.status).toBe(400);
+  });
+
+  it('rejects assignment to an admin', async () => {
+    const ticket = (await createTicket('dana')).body.ticket;
+    const response = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.ari.id });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('only be assigned to an agent');
+  });
+
+  it('prevents agents from assigning tickets', async () => {
+    const ticket = (await createTicket('dana')).body.ticket;
+    const response = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('lee'))
+      .send({ assigneeId: users.lee.id });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toContain('Only admins can assign');
   });
 
   it('returns 409 when the ticket changed since the caller loaded it', async () => {
@@ -213,7 +268,11 @@ describe('ticket endpoints', () => {
     await request(app)
       .patch(`/api/tickets/${ticket.id}`)
       .set('Authorization', bearer('ari'))
-      .send({ status: 'open', expectedUpdatedAt: ticket.updatedAt });
+      .send({
+        status: 'open',
+        assigneeId: users.lee.id,
+        expectedUpdatedAt: ticket.updatedAt,
+      });
 
     const stale = await request(app)
       .patch(`/api/tickets/${ticket.id}`)

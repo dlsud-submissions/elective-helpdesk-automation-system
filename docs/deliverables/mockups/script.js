@@ -1,6 +1,6 @@
 'use strict';
 
-// AI-HAS static UI mockup (S1-12). Plain browser JavaScript, no framework and
+// Harbor Tickets static UI mockup (S1-12). Plain browser JavaScript, no framework and
 // no backend. All data below is fictional and every "API call" is simulated
 // with a timer; nothing leaves the browser and nothing persists on reload.
 
@@ -480,7 +480,7 @@ function viewSignIn() {
 
   main.innerHTML = `
     <section class="panel auth-card" aria-labelledby="page-title">
-      <p class="eyebrow">AI-HAS IT Helpdesk</p>
+      <p class="eyebrow">Harbor Tickets IT Helpdesk</p>
       <h1 id="page-title" tabindex="-1">Sign in to get IT help</h1>
       <div id="signin-alert"></div>
       <form id="signin-form" novalidate>

@@ -14,7 +14,7 @@
 
 ```mermaid
 gantt
-    title AI-HAS Sprint Timeline
+    title Harbor Tickets Sprint Timeline
     dateFormat  YYYY-MM-DD
     axisFormat  %b %d
     section Sprints

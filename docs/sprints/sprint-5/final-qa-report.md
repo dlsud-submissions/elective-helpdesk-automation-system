@@ -2,6 +2,8 @@
 
 Run date: 2026-11-20
 
+This report is a historical snapshot. Changes made after this date, including the current Harbor Tickets feature set, are not covered by its results.
+
 ## Verification command
 
 `npm run verify:all` passed after a successful `npm run install:all`.
@@ -28,11 +30,12 @@ Run date: 2026-11-20
 
 ## AI and latency limitations
 
-- Gemini chat model ID: not measured in this workspace.
+- Chat answers use the local grounded-answer implementation and do not call Gemini.
+- Gemini model ID and latency for optional ticket-solution drafting: not measured in this workspace.
 - Gemini embedding model ID: not measured in this workspace.
 - Network conditions/quota tier: not measured.
 - Cold-start duration: not measured.
-- Local chat timeout: 20 seconds by default; local 15 ms sample test passed with bounded 504 behavior.
+- Server timeout behavior was covered by local resilience tests; it does not represent hosted Gemini chat performance.
 - The local RAG suite uses deterministic fictional seed data and must not be interpreted as hosted-model performance.
 
 ## Known residual risks

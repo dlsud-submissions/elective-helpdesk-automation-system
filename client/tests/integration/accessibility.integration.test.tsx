@@ -41,12 +41,12 @@ describe('accessibility regressions (S4-06)', () => {
     mockApi(employeeApi);
     renderApp('/chat');
     await screen.findByRole('heading', { level: 1, name: 'Ask IT' });
-    await waitFor(() => expect(document.title).toBe('Chat · IT Helpdesk'));
+    await waitFor(() => expect(document.title).toBe('Chat · Harbor Tickets'));
 
     fireEvent.click(screen.getByRole('link', { name: 'My tickets' }));
     await screen.findByRole('heading', { level: 1, name: 'My tickets' });
     await waitFor(() =>
-      expect(document.title).toBe('My tickets · IT Helpdesk')
+      expect(document.title).toBe('My tickets · Harbor Tickets')
     );
   });
 
@@ -181,7 +181,10 @@ describe('accessibility regressions (S4-06)', () => {
     fake = createFakeSupabase({ session: { access_token: 'lee-token' } });
     mockApi(
       (call) =>
-        meHandler(profiles.lee)(call) ??
+        meHandler(profiles.ari)(call) ??
+        (call.path === '/api/agents'
+          ? { status: 200, body: { agents: [] } }
+          : undefined) ??
         (call.path === '/api/tickets'
           ? { status: 200, body: { tickets: [] } }
           : undefined)
@@ -192,11 +195,11 @@ describe('accessibility regressions (S4-06)', () => {
       'status'
     );
     await waitFor(() =>
-      expect(document.title).toBe('Ticket queue · IT Helpdesk')
+      expect(document.title).toBe('Ticket queue · Harbor Tickets')
     );
   });
 
-  it('links a dashboard date-range error to the date fields', async () => {
+  it('shows dashboard totals without date-range controls', async () => {
     fake = createFakeSupabase({ session: { access_token: 'lee-token' } });
     mockApi(
       (call) =>
@@ -207,30 +210,29 @@ describe('accessibility regressions (S4-06)', () => {
               body: {
                 summary: {
                   totalTickets: 0,
-                  byStatus: {},
-                  openByPriority: {},
-                  openEscalated: 0,
-                  openUnassigned: 0,
-                  createdInRange: 0,
-                  resolvedInRange: 0,
-                  range: { from: '2026-11-01', to: '2026-11-20' },
+                  assignedTickets: 0,
+                  byStatus: {
+                    new: 0,
+                    open: 0,
+                    in_progress: 0,
+                    pending: 0,
+                    resolved: 0,
+                    closed: 0,
+                  },
+                  openByPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
                 },
               },
             }
-          : undefined)
+          : call.path === '/api/tickets'
+            ? { status: 200, body: { tickets: [] } }
+            : undefined)
     );
     renderApp('/dashboard');
-    const from = await screen.findByLabelText('From');
-    fireEvent.change(from, { target: { value: '2026-12-01' } });
-    fireEvent.change(screen.getByLabelText('To'), {
-      target: { value: '2026-11-01' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
-
-    expect(from).toHaveFocus();
-    expect(from).toHaveAttribute('aria-invalid', 'true');
-    expect(from).toHaveAccessibleDescription(
-      'Choose a start date on or before the end date.'
-    );
+    expect(
+      await screen.findByRole('heading', { name: 'Agent dashboard' })
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('From')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('To')).not.toBeInTheDocument();
+    expect(screen.queryByText(/in range/)).not.toBeInTheDocument();
   });
 });

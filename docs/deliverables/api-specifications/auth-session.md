@@ -1,73 +1,20 @@
-# Auth Session Contract
+# Auth and Profile Contract
 
-> Status: Sprint 3 contract baseline for role-aware chat and dashboard work.
+> Status: Current API surface; Supabase Auth handles browser sign-in and session lifecycle.
 
-## Purpose
+## Browser authentication
 
-This contract defines the expected employee/admin session flow in the Express API and the browser client. The frontend authenticates through Supabase Auth, while the backend checks the session token and loads the profile/role record from the application database before allowing access to protected routes.
+The client uses Supabase Auth for sign-in, sign-up, session restoration, and sign-out. It sends the access token to protected Express endpoints. The server verifies the token and reads the authoritative role and account state from `public.profiles`; client metadata and route guards do not grant permissions.
 
-## Endpoints
+## Express endpoints
 
-### 1. `GET /api/auth/session`
+| Method and path                         | Access        | Behavior                                                                                          |
+| :-------------------------------------- | :------------ | :------------------------------------------------------------------------------------------------ |
+| `GET /api/me`                           | Authenticated | Returns the current user's trusted profile, role, account status, suspension end, and ban reason. |
+| `PATCH /api/me/profile`                 | Authenticated | Updates the caller's display name. The server accepts 1–120 trimmed characters.                   |
+| `GET /api/admin/users`                  | Admin         | Lists profile and auth-account details.                                                           |
+| `POST /api/admin/users`                 | Admin         | Creates an agent or admin account.                                                                |
+| `PATCH /api/admin/users/:userId/status` | Admin         | Suspends, bans, or restores another account; an admin cannot change their own status.             |
+| `GET /api/agents`                       | Admin         | Lists agent profiles for assignment controls.                                                     |
 
-Returns the current session state for the authenticated user.
-
-#### Success response: `200 OK`
-
-```json
-{
-  "authenticated": true,
-  "user": {
-    "id": "8f5b1a7e-6b0b-4d94-8d76-5f8dd62f8822",
-    "email": "employee@example.com",
-    "role": "employee",
-    "displayName": "Sam Employee"
-  },
-  "expiresAt": "2026-11-03T18:00:00.000Z"
-}
-```
-
-#### Signed-out response: `200 OK`
-
-```json
-{
-  "authenticated": false,
-  "user": null
-}
-```
-
-#### Errors
-
-- `401 Unauthorized` — invalid or expired session token
-- `500 Internal Server Error` — unexpected auth/profile lookup failure
-
-### 2. `POST /api/auth/sign-out`
-
-Ends the current authenticated session.
-
-#### Success response: `200 OK`
-
-```json
-{
-  "success": true,
-  "message": "Signed out successfully."
-}
-```
-
-#### Errors
-
-- `401 Unauthorized` — no active session to revoke
-- `500 Internal Server Error` — sign-out failed at the provider boundary
-
-## Authorization rules
-
-- The frontend may send the session token via an HTTP cookie or Authorization header, as defined by the server contract.
-- The backend must validate the session and refresh role data from the trusted `profiles` table.
-- Client-side route guards are not the authorization boundary; the API remains authoritative.
-- Employees may not access agent or admin routes through direct navigation or direct API requests.
-
-## Security requirements
-
-- No browser bundle may include a privileged Supabase service-role key.
-- The backend must never trust user-supplied role data from the client.
-- `auth.users` remains managed by Supabase Auth; the server reads role and profile metadata from the application profile records only.
+Supabase Auth account administration and service-role operations remain server-side. The API rejects unauthenticated callers and applies role checks independently of the visible UI.

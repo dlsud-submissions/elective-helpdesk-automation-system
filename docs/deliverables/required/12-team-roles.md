@@ -1,6 +1,6 @@
 # 12. Team Roles
 
-> **Status:** Draft role descriptions based on the assignments supplied by the team.
+> **Team:** Harbor. These role descriptions summarize the assignments supplied by the team.
 
 | Team Member       | Assigned Role              | Draft Responsibilities                                                                                                                                                                       |
 | :---------------- | :------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

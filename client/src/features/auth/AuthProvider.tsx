@@ -14,7 +14,11 @@ import type { AuthState, Profile, SignInResult } from './types';
 
 type AuthContextValue = {
   state: AuthState;
-  signIn: (email: string, password: string) => Promise<SignInResult>;
+  signIn: (
+    email: string,
+    password: string,
+    staffOnly?: boolean
+  ) => Promise<SignInResult>;
   signOut: () => Promise<void>;
   retry: () => void;
 };
@@ -151,7 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    async (email: string, password: string): Promise<SignInResult> => {
+    async (
+      email: string,
+      password: string,
+      staffOnly = false
+    ): Promise<SignInResult> => {
       const token = ++generation.current;
       let result;
       try {
@@ -179,6 +187,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const profile = await loadProfile();
       if (profile.kind === 'ok') {
+        if (staffOnly && profile.profile.role === 'employee') {
+          await clearSession('signedOut');
+          return {
+            ok: false,
+            message: 'This login is for agents and admins only.',
+          };
+        }
         await applyProfileResult(profile, token);
         return { ok: true };
       }

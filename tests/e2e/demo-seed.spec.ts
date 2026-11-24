@@ -20,8 +20,13 @@ test.describe('repeatable fictional demo seed', () => {
 
     await page.getByRole('button', { name: 'Sign out' }).click();
     await signIn(page, 'agent');
-    const queue = page.getByRole('list', { name: 'Tickets' });
-    await expect(queue.getByRole('link').first()).toContainText('Escalated');
+    await expect(
+      page.getByRole('heading', { name: 'Agent dashboard' })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('list', { name: 'Assigned tickets' }).getByRole('link')
+    ).toHaveCount(3);
+    await expect(page.getByText('Open unassigned')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Sign out' }).click();
     await signIn(page, 'admin');

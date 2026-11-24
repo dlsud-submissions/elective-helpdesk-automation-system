@@ -51,3 +51,41 @@ export function getConversationMessages(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages`
   );
 }
+
+export async function listArchivedConversations(): Promise<Conversation[]> {
+  return (
+    await apiFetch<{ conversations: Conversation[] }>(
+      '/api/conversations/archived'
+    )
+  ).conversations;
+}
+
+export async function renameConversation(
+  conversationId: string,
+  title: string
+): Promise<Conversation> {
+  return (
+    await apiFetch<{ conversation: Conversation }>(
+      `/api/conversations/${encodeURIComponent(conversationId)}`,
+      { method: 'PATCH', body: { title } }
+    )
+  ).conversation;
+}
+
+export async function setConversationArchived(
+  conversationId: string,
+  archived: boolean
+): Promise<Conversation> {
+  return (
+    await apiFetch<{ conversation: Conversation }>(
+      `/api/conversations/${encodeURIComponent(conversationId)}`,
+      { method: 'PATCH', body: { archived } }
+    )
+  ).conversation;
+}
+
+export function deleteConversation(conversationId: string): Promise<void> {
+  return apiFetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    method: 'DELETE',
+  });
+}

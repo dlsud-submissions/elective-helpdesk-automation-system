@@ -34,6 +34,8 @@ export class InMemoryConversationRepository implements ConversationRepository {
       id: randomUUID(),
       requesterId: input.requesterId,
       title: input.title,
+      archivedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -48,9 +50,63 @@ export class InMemoryConversationRepository implements ConversationRepository {
 
   async listByRequester(requesterId: string): Promise<ConversationRecord[]> {
     return [...this.conversations.values()]
-      .filter((conversation) => conversation.requesterId === requesterId)
+      .filter(
+        (conversation) =>
+          conversation.requesterId === requesterId &&
+          !conversation.archivedAt &&
+          !conversation.deletedAt
+      )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((conversation) => ({ ...conversation }));
+  }
+
+  async listByIds(conversationIds: string[]): Promise<ConversationRecord[]> {
+    const ids = new Set(conversationIds);
+    return [...this.conversations.values()]
+      .filter(
+        (conversation) =>
+          ids.has(conversation.id) &&
+          !conversation.archivedAt &&
+          !conversation.deletedAt
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((conversation) => ({ ...conversation }));
+  }
+
+  async listArchived(requesterId: string): Promise<ConversationRecord[]> {
+    return [...this.conversations.values()]
+      .filter(
+        (conversation) =>
+          conversation.requesterId === requesterId &&
+          Boolean(conversation.archivedAt) &&
+          !conversation.deletedAt
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((conversation) => ({ ...conversation }));
+  }
+
+  async rename(id: string, title: string): Promise<ConversationRecord | null> {
+    const conversation = this.conversations.get(id);
+    if (!conversation || conversation.deletedAt) return null;
+    conversation.title = title;
+    return { ...conversation };
+  }
+
+  async archive(
+    id: string,
+    archived: boolean
+  ): Promise<ConversationRecord | null> {
+    const conversation = this.conversations.get(id);
+    if (!conversation || conversation.deletedAt) return null;
+    conversation.archivedAt = archived ? this.now() : null;
+    return { ...conversation };
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const conversation = this.conversations.get(id);
+    if (!conversation) return false;
+    conversation.deletedAt = this.now();
+    return true;
   }
 
   async addMessages(messages: NewMessage[]): Promise<MessageRecord[]> {
@@ -78,6 +134,8 @@ type ConversationRow = {
   id: string;
   requester_id: string;
   title: string;
+  archived_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -96,6 +154,8 @@ const toConversation = (row: ConversationRow): ConversationRecord => ({
   id: row.id,
   requesterId: row.requester_id,
   title: row.title,
+  archivedAt: row.archived_at,
+  deletedAt: row.deleted_at,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -110,7 +170,8 @@ const toMessage = (row: MessageRow): MessageRecord => ({
   createdAt: row.created_at,
 });
 
-const conversationColumns = 'id, requester_id, title, created_at, updated_at';
+const conversationColumns =
+  'id, requester_id, title, archived_at, deleted_at, created_at, updated_at';
 const messageColumns =
   'id, conversation_id, sender_type, content, outcome, source_refs, created_at';
 
@@ -148,11 +209,79 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .from('conversations')
       .select(conversationColumns)
       .eq('requester_id', requesterId)
+      .is('archived_at', null)
+      .is('deleted_at', null)
       .order('updated_at', { ascending: false })
       .limit(50)
       .returns<ConversationRow[]>();
     if (error) throw databaseError(error, 'conversation list');
     return (data ?? []).map(toConversation);
+  }
+
+  async listByIds(conversationIds: string[]): Promise<ConversationRecord[]> {
+    if (!conversationIds.length) return [];
+    const { data, error } = await this.client()
+      .from('conversations')
+      .select(conversationColumns)
+      .in('id', conversationIds)
+      .is('archived_at', null)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(50)
+      .returns<ConversationRow[]>();
+    if (error) throw databaseError(error, 'assigned conversation list');
+    return (data ?? []).map(toConversation);
+  }
+
+  async listArchived(requesterId: string): Promise<ConversationRecord[]> {
+    const { data, error } = await this.client()
+      .from('conversations')
+      .select(conversationColumns)
+      .eq('requester_id', requesterId)
+      .not('archived_at', 'is', null)
+      .is('deleted_at', null)
+      .order('archived_at', { ascending: false })
+      .limit(50)
+      .returns<ConversationRow[]>();
+    if (error) throw databaseError(error, 'archived conversation list');
+    return (data ?? []).map(toConversation);
+  }
+
+  async rename(id: string, title: string): Promise<ConversationRecord | null> {
+    const { data, error } = await this.client()
+      .from('conversations')
+      .update({ title })
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select(conversationColumns)
+      .maybeSingle<ConversationRow>();
+    if (error) throw databaseError(error, 'conversation rename');
+    return data ? toConversation(data) : null;
+  }
+
+  async archive(
+    id: string,
+    archived: boolean
+  ): Promise<ConversationRecord | null> {
+    const { data, error } = await this.client()
+      .from('conversations')
+      .update({ archived_at: archived ? new Date().toISOString() : null })
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select(conversationColumns)
+      .maybeSingle<ConversationRow>();
+    if (error) throw databaseError(error, 'conversation archive');
+    return data ? toConversation(data) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const { error } = await this.client()
+      .from('conversations')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('deleted_at', null);
+    if (error) throw databaseError(error, 'conversation delete');
+    return true;
   }
 
   async addMessages(messages: NewMessage[]): Promise<MessageRecord[]> {

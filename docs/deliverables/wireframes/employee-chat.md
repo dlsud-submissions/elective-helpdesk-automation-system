@@ -1,6 +1,6 @@
 # W-02 Employee Chat
 
-> Status: Low-fidelity wireframe for review. Endpoints are proposed, not implemented.
+> Status: Historical low-fidelity design reference. Current behavior and API routes are documented in the root README and API specification pack.
 
 Roles: employee (agents and admins may also use it) · Journeys: J1, J2, J3 · Matrix: CI-01, CI-02, CI-03, E2E-01, E2E-04, REG-02
 

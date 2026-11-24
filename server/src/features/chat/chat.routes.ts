@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from 'express';
-import { handle } from '../../shared/http/errors.js';
-import { getAuth } from '../auth/index.js';
+import { badRequest, handle } from '../../shared/http/errors.js';
+import { getAuth, requireRole } from '../auth/index.js';
 import { answerKnowledgeQuestion, validateQuestion } from './chat.service.js';
 import type { ConversationService } from './conversation.service.js';
 
@@ -14,11 +14,14 @@ export function createChatRouter(deps: {
 }): Router {
   const router = Router();
   const { conversations } = deps;
+  const employees = requireRole('employee');
+  const chatReaders = requireRole('employee', 'agent');
 
   // Stateless grounded-answer endpoint from S2-06, now authenticated.
   router.post(
     '/api/chat/answer',
     deps.requireAuth,
+    employees,
     handle((request, response) => {
       let question: string;
       try {
@@ -37,6 +40,7 @@ export function createChatRouter(deps: {
   router.post(
     '/api/chat/messages',
     deps.requireAuth,
+    employees,
     handle(async (request, response) => {
       const result = await conversations.send(request.body, getAuth(request));
       response.status(201).json(result);
@@ -46,6 +50,7 @@ export function createChatRouter(deps: {
   router.get(
     '/api/conversations',
     deps.requireAuth,
+    chatReaders,
     handle(async (request, response) => {
       response.json({
         conversations: await conversations.list(getAuth(request)),
@@ -54,8 +59,64 @@ export function createChatRouter(deps: {
   );
 
   router.get(
+    '/api/conversations/archived',
+    deps.requireAuth,
+    employees,
+    handle(async (request, response) => {
+      response.json({
+        conversations: await conversations.listArchived(getAuth(request)),
+      });
+    })
+  );
+
+  router.patch(
+    '/api/conversations/:conversationId',
+    deps.requireAuth,
+    chatReaders,
+    handle(async (request, response) => {
+      const conversationId = routeId(request.params.conversationId);
+      const body = request.body as Record<string, unknown>;
+      if ('title' in body) {
+        response.json({
+          conversation: await conversations.rename(
+            conversationId,
+            body.title,
+            getAuth(request)
+          ),
+        });
+        return;
+      }
+      if ('archived' in body) {
+        response.json({
+          conversation: await conversations.setArchived(
+            conversationId,
+            body.archived,
+            getAuth(request)
+          ),
+        });
+        return;
+      }
+      throw badRequest('Conversation update requires title or archived.');
+    })
+  );
+
+  router.delete(
+    '/api/conversations/:conversationId',
+    deps.requireAuth,
+    chatReaders,
+    handle(async (request, response) => {
+      await conversations.delete(
+        routeId(request.params.conversationId),
+        getAuth(request)
+      );
+      response.status(204).send();
+    })
+  );
+
+  router.get(
     '/api/conversations/:conversationId/messages',
     deps.requireAuth,
+    chatReaders,
     handle(async (request, response) => {
       response.json(
         await conversations.getMessages(

@@ -225,6 +225,35 @@ describe('POST /api/actions/execute', () => {
     );
   });
 
+  it('prevents agents and admins from creating tickets through actions', async () => {
+    const repository = createRepository();
+    for (const user of [agent, { id: 'admin-id', role: 'admin' as const }]) {
+      const regular = await executeAction(
+        createTestApp(repository, user),
+        ticketProposal
+      );
+      const escalation = await executeAction(
+        createTestApp(repository, user),
+        {
+          intent: 'escalate_to_human',
+          confidence: 0.9,
+          arguments: {
+            title: 'Cannot sign in',
+            summary: 'The demo account cannot sign in.',
+            reason: 'user_requested_agent',
+          },
+          reason: 'The requester asks for a person.',
+        },
+        'escalate_to_human'
+      );
+
+      expect(regular.status).toBe(403);
+      expect(escalation.status).toBe(403);
+    }
+    expect(repository.createTicket).not.toHaveBeenCalled();
+    expect(repository.escalateToHuman).not.toHaveBeenCalled();
+  });
+
   it('forwards the same idempotency key on a ticket retry', async () => {
     const repository = createRepository();
     const app = createTestApp(repository);

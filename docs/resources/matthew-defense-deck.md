@@ -1,8 +1,10 @@
-# AI-HAS Defense Deck
+# Harbor Tickets Defense Deck
 
 ## 1. Title
 
-AI-Powered Enterprise Helpdesk and Workflow Automation System
+Harbor Tickets
+
+Team Harbor
 
 ## 2. Problem and users
 
@@ -22,7 +24,7 @@ AI-Powered Enterprise Helpdesk and Workflow Automation System
 - React/Vite employee and agent/admin UI.
 - Express feature APIs with verified Supabase sessions.
 - Supabase PostgreSQL, profiles, RLS, tickets, conversations, audit, and automation records.
-- Server-side Gemini/RAG adapters; Gemini and service-role credentials remain server-only.
+- Curated local grounded-chat path; optional server-side Gemini ticket-solution drafting. Gemini and service-role credentials remain server-only.
 
 ## 5. RAG and citations
 
@@ -47,15 +49,13 @@ AI-Powered Enterprise Helpdesk and Workflow Automation System
 
 ## 8. Evidence
 
-- 44 client tests passed.
-- 109 server tests passed.
-- Security, RAG, timeout, 429, ticket, auth, and dashboard integration coverage passed.
-- Typechecks, lint, format, and builds passed.
+- Report test results from the current `npm run verify:all` run and cite [the QA report](../sprints/sprint-5/final-qa-report.md) for historical evidence.
+- Security, RAG, timeout, ticket, auth, conversation, and dashboard behavior has automated coverage.
 - E2E and hosted infrastructure remain explicitly environment-dependent.
 
 ## 9. Demo and fallback
 
-- Local sign-in, cited chat, ticket, escalation, dashboard, and denial flow.
+- Local sign-in, cited chat, ticket, escalation, agent reply/draft, admin queue, dashboard, and role-denial flow.
 - If Gemini or hosted network is unavailable, show controlled uncertainty/503 behavior and the persisted local ticket flow.
 - Reset to seeded fictional data; never expose credentials or real personal data.
 

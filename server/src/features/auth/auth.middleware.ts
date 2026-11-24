@@ -31,6 +31,15 @@ export function createRequireAuth(verifier: AuthVerifier) {
           'Your account is not set up for the helpdesk yet. Contact IT.'
         );
       }
+      if (result.status === 'account_suspended') {
+        throw new HttpError(
+          403,
+          'account_suspended',
+          result.accountStatus === 'banned'
+            ? 'This account has been permanently banned.'
+            : `This account is suspended${result.suspendedUntil ? ` until ${new Date(result.suspendedUntil).toLocaleString()}` : ''}.`
+        );
+      }
 
       request.auth = result.context;
       next();

@@ -16,6 +16,9 @@ erDiagram
     conversations ||--o{ messages : "contains"
     knowledge_articles ||--o{ knowledge_chunks : "split into"
     tickets ||--o{ automation_runs : "triggers"
+    profiles ||--o{ kb_submissions : "submits"
+    profiles ||--o{ ticket_solution_drafts : "generates"
+    tickets ||--o{ ticket_solution_drafts : "has drafts"
 
     "auth.users" {
         uuid id PK "Supabase managed"
@@ -29,6 +32,9 @@ erDiagram
         uuid id PK, FK "references auth.users.id"
         text display_name
         text role
+        text account_status
+        timestamptz suspended_until
+        text ban_reason
         timestamptz created_at
     }
 
@@ -71,6 +77,8 @@ erDiagram
         uuid id PK
         uuid requester_id FK
         text title
+        timestamptz archived_at
+        timestamptz deleted_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -104,6 +112,29 @@ erDiagram
         text result_summary
         timestamptz created_at
     }
+
+    kb_submissions {
+        uuid id PK
+        uuid agent_id FK
+        text agent_name
+        uuid ticket_id FK
+        text ticket_reference
+        text input
+        text solution
+        text status
+        text admin_note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ticket_solution_drafts {
+        uuid id PK
+        uuid ticket_id FK
+        uuid generated_by FK
+        text content
+        text model
+        timestamptz created_at
+    }
 ```
 
 ## Table Alternative
@@ -113,36 +144,41 @@ erDiagram
 | Entity                            | Example Fields                                                                                                                                                                       | Purpose                                                                                |
 | :-------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
 | `auth.users` _(Supabase managed)_ | id, email, last_sign_in_at, created_at, raw_user_meta_data                                                                                                                           | Built-in authentication table. Not edited directly by the app.                         |
-| `profiles`                        | id (PK, FK → `auth.users.id`), display_name, role, created_at                                                                                                                        | Application profile and role mapping, linked one-to-one to `auth.users`.               |
+| `profiles`                        | id (PK, FK → `auth.users.id`), display_name, role, account_status, suspended_until, ban_reason, created_at                                                                           | Application profile, role, and account state linked one-to-one to `auth.users`.        |
 | `tickets`                         | id, ticket_number, requester_id, title, description, category, priority, status, assigned_to, is_escalated, conversation_id, escalation_summary, resolved_at, created_at, updated_at | Tracks support requests and their lifecycle.                                           |
 | `knowledge_articles`              | id, title, body, category, source_name, updated_at, is_published                                                                                                                     | Stores approved support procedures.                                                    |
 | `knowledge_chunks`                | id, article_id, chunk_text, embedding                                                                                                                                                | Stores text chunks and vector embeddings for retrieval (pgvector).                     |
-| `conversations`                   | id, requester_id, created_at                                                                                                                                                         | Groups chat sessions.                                                                  |
+| `conversations`                   | id, requester_id, title, archived_at, deleted_at, created_at, updated_at                                                                                                             | Groups chat sessions and supports rename, archive, and soft deletion.                  |
 | `messages`                        | id, conversation_id, sender_type, content, created_at, source_refs                                                                                                                   | Stores chat messages and optional source references.                                   |
 | `audit_logs`                      | id, actor_id, action, resource_type, resource_id, outcome, created_at                                                                                                                | Records significant actions and workflow outcomes without storing unnecessary secrets. |
 | `automation_runs`                 | id, ticket_id, action_type, status, result_summary, created_at                                                                                                                       | Tracks safe workflow attempts and outcomes.                                            |
+| `kb_submissions`                  | id, agent_id, agent_name, ticket_id, ticket_reference, input, solution, status, admin_note, created_at, updated_at                                                                   | Agent-submitted problem → solution pairs awaiting admin review before entering the KB. |
+| `ticket_solution_drafts`          | id, ticket_id, generated_by, content, model, created_at                                                                                                                              | Stores agent solution drafts, including optional Gemini-generated drafts.              |
 
 ### Relationships
 
-| Parent               | Child              | Cardinality | Notes                                                                |
-| :------------------- | :----------------- | :---------- | :------------------------------------------------------------------- |
-| `auth.users`         | `profiles`         | 1 : 0..1    | `profiles.id` is both primary key and foreign key to `auth.users.id` |
-| `profiles`           | `tickets`          | 1 : many    | As requester and as assignee                                         |
-| `profiles`           | `conversations`    | 1 : many    |                                                                      |
-| `profiles`           | `audit_logs`       | 1 : many    | As actor, where applicable                                           |
-| `conversations`      | `messages`         | 1 : many    |                                                                      |
-| `knowledge_articles` | `knowledge_chunks` | 1 : many    |                                                                      |
-| `tickets`            | `automation_runs`  | 1 : many    |                                                                      |
+| Parent               | Child                    | Cardinality | Notes                                                                |
+| :------------------- | :----------------------- | :---------- | :------------------------------------------------------------------- |
+| `auth.users`         | `profiles`               | 1 : 0..1    | `profiles.id` is both primary key and foreign key to `auth.users.id` |
+| `profiles`           | `tickets`                | 1 : many    | As requester and as assignee                                         |
+| `profiles`           | `conversations`          | 1 : many    |                                                                      |
+| `profiles`           | `audit_logs`             | 1 : many    | As actor, where applicable                                           |
+| `conversations`      | `messages`               | 1 : many    |                                                                      |
+| `knowledge_articles` | `knowledge_chunks`       | 1 : many    |                                                                      |
+| `tickets`            | `automation_runs`        | 1 : many    |                                                                      |
+| `profiles`           | `kb_submissions`         | 1 : many    | As the agent who submitted the pair                                  |
+| `profiles`           | `ticket_solution_drafts` | 1 : many    | As the agent who generated or saved the draft                        |
+| `tickets`            | `ticket_solution_drafts` | 1 : many    | Draft history for a ticket                                           |
 
 ## Database Notes
 
 - Supabase provides PostgreSQL and manages `auth.users`. Do not add app-specific columns to it; put them in `profiles`.
-- `profiles.id` reuses the auth user's UUID. A profile row is typically created when a user signs up (for example, via a database trigger on `auth.users`). The exact mechanism is to be decided.
+- `profiles.id` reuses the auth user's UUID. The `on_auth_user_created` trigger creates a profile when an employee registers; staff accounts are created through the admin API.
 - `auth.users.raw_user_meta_data` can be edited by the user, so it must **not** be used to decide roles. The authoritative role lives in `profiles.role` and is changed only by admins or server-side code.
-- Access policies (Row Level Security) must be configured on application tables.
+- Row Level Security is enabled on application tables. The API uses the service role and applies its own role/ownership checks; browser database access remains constrained by RLS.
 - `knowledge_chunks.embedding` uses a `vector(N)` column where `N` must equal `EMBEDDING_DIMENSIONS` for the selected Gemini embedding model. Changing the embedding model or dimension requires re-embedding all chunks and a matching pgvector column size.
 - Never expose a service-role key in the browser.
-- Deleting an auth user should cascade or be handled for their profile, and the team should decide how tickets and audit logs are kept afterwards.
+- Account suspension and bans are represented in both Supabase Auth and profile status fields. Profile/ticket/audit retention follows the migration constraints below.
 
 ## Row Level Security
 
@@ -156,16 +192,17 @@ RLS is enabled on every application table. The Express API uses the service role
 | `audit_logs`, `automation_runs`      | Admins read; writes are service-role only.                                                            |
 | `knowledge_articles`                 | Read published articles.                                                                              |
 | `knowledge_chunks`, `match_chunks()` | No browser access; service role only.                                                                 |
+| `ticket_solution_drafts`             | No browser access; service role only.                                                                 |
 
 `public.current_app_role()` (security definer) reads `profiles.role` for `auth.uid()` and is used by the policies.
 
 ## Resolved Decisions
 
 - Roles: `employee` (default), `agent`, `admin`.
-- Profile creation: the `on_auth_user_created` trigger creates a profile with role `employee`. Only server-side code or SQL promotes roles.
+- Profile creation: the `on_auth_user_created` trigger creates a profile with role `employee` and active account status. Only server-side code or SQL promotes roles or changes account status.
 - Retention: deleting a profile is blocked while it has requested tickets (`on delete restrict`). Assignee and audit-log actor references become null, so audit history is kept. Conversations cascade with their owner.
 - `resolved_at` is set by trigger the first time a ticket reaches `resolved`/`closed`, and cleared if it is reopened.
-- Embedding model and dimension: resolved as `gemini-embedding-001` with `EMBEDDING_DIMENSIONS=1536`; see [Gemini API Configuration](08-gemini-configuration.md).
+- Embedding model and dimension: configured as `gemini-embedding-001` with `EMBEDDING_DIMENSIONS=1536`; see [Gemini API Configuration](../gemini-configuration.md). The current chat answer path uses curated in-process knowledge rather than pgvector retrieval.
 
 ---
 

@@ -1,6 +1,6 @@
 # W-03 New Ticket and W-04 My Tickets
 
-> Status: Low-fidelity wireframes for review. Endpoints are proposed, not implemented.
+> Status: Historical low-fidelity design reference. Current behavior and API routes are documented in the root README and API specification pack.
 
 Roles: employee · Journeys: J2, J3 · Matrix: CI-04, E2E-02
 

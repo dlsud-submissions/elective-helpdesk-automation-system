@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toApiError, type ApiError } from '../../../shared/api/http';
 import {
   DeniedState,
@@ -20,12 +20,14 @@ type ListState =
 const newestFirst = (tickets: Ticket[]) =>
   [...tickets].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-/**
- * The signed-in user's own tickets (wireframe: employee-tickets). The API
- * scopes employees to their own tickets; staff, who receive the whole queue,
- * are filtered to tickets they requested so this view always means "mine".
- */
-export function MyTicketsPage({ userId }: { userId: string }) {
+/** Employee requests and staff-assigned tickets, scoped to the signed-in user. */
+export function MyTicketsPage({
+  userId,
+  role,
+}: {
+  userId: string;
+  role: 'employee' | 'agent' | 'admin';
+}) {
   const { ticketId } = useParams();
   const [list, setList] = useState<ListState>({ status: 'loading' });
   useDocumentTitle(ticketId ? 'Ticket details' : 'My tickets');
@@ -37,13 +39,17 @@ export function MyTicketsPage({ userId }: { userId: string }) {
       setList({
         status: 'ready',
         tickets: newestFirst(
-          tickets.filter((ticket) => ticket.requesterId === userId)
+          tickets.filter((ticket) =>
+            role === 'employee'
+              ? ticket.requesterId === userId
+              : ticket.assignedTo === userId
+          )
         ),
       });
     } catch (error) {
       setList({ status: 'error', error: toApiError(error) });
     }
-  }, [userId]);
+  }, [role, userId]);
 
   useEffect(() => {
     void refresh();
@@ -64,10 +70,18 @@ export function MyTicketsPage({ userId }: { userId: string }) {
     <section aria-labelledby="my-tickets-title" className="narrow">
       <h1 id="my-tickets-title">My tickets</h1>
       <p className="muted">
-        Tickets you created or escalated from chat, newest first.
+        {role === 'employee'
+          ? 'Tickets you created, newest first.'
+          : 'Tickets assigned to you, newest first.'}
       </p>
       {list.status === 'loading' ? (
-        <LoadingState label="Loading your tickets…" />
+        <LoadingState
+          label={
+            role === 'agent'
+              ? 'Loading assigned tickets…'
+              : 'Loading your tickets…'
+          }
+        />
       ) : null}
       {list.status === 'error' ? (
         list.error.kind === 'forbidden' ? (
@@ -78,17 +92,33 @@ export function MyTicketsPage({ userId }: { userId: string }) {
       ) : null}
       {list.status === 'ready' && list.tickets.length === 0 ? (
         <EmptyState>
-          <p>You haven't created any tickets yet.</p>
-          <Link to="/chat" className="button button--secondary">
-            Ask IT in chat
-          </Link>
+          <p>
+            {role === 'agent'
+              ? 'No tickets are assigned to you yet.'
+              : "You haven't created any tickets yet."}
+          </p>
+          {role === 'agent' ? null : (
+            <Link to="/chat" className="button button--secondary">
+              Ask IT in chat
+            </Link>
+          )}
         </EmptyState>
       ) : null}
       {list.status === 'ready' && list.tickets.length > 0 ? (
-        <ul className="ticket-list" aria-label="Your tickets">
+        <ul
+          className="ticket-list"
+          aria-label={role === 'agent' ? 'Assigned tickets' : 'Your tickets'}
+        >
           {list.tickets.map((ticket) => (
             <li key={ticket.id}>
-              <Link to={`/tickets/${ticket.id}`} className="ticket-row">
+              <Link
+                to={
+                  role === 'agent'
+                    ? `/dashboard/${ticket.id}`
+                    : `/tickets/${ticket.id}`
+                }
+                className="ticket-row"
+              >
                 <span className="ticket-row__head">
                   <strong>{ticket.reference}</strong>
                   {ticket.isEscalated ? (
@@ -103,11 +133,24 @@ export function MyTicketsPage({ userId }: { userId: string }) {
                 <span className="ticket-row__title">{ticket.title}</span>
                 <span className="muted small">
                   Updated {formatRelative(ticket.updatedAt)}
-                  {ticket.assigneeName
-                    ? ` · Handled by ${ticket.assigneeName}`
-                    : ' · Not yet assigned'}
+                  {role === 'agent'
+                    ? ` · Requested by ${ticket.requesterName}`
+                    : ticket.assigneeName
+                      ? ` · Handled by ${ticket.assigneeName}`
+                      : ' · Not yet assigned'}
                 </span>
               </Link>
+              {role === 'agent' &&
+              ticket.conversationId &&
+              ticket.status !== 'resolved' &&
+              ticket.status !== 'closed' ? (
+                <Link
+                  to={`/chat/${ticket.conversationId}`}
+                  className="button button--secondary ticket-row__chat-link"
+                >
+                  Open in chat
+                </Link>
+              ) : null}
             </li>
           ))}
         </ul>

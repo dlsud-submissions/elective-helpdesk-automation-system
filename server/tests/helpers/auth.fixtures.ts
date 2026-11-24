@@ -14,21 +14,33 @@ export const users = {
     id: '11111111-1111-4111-8111-111111111111',
     displayName: 'Dana Cruz',
     role: 'employee',
+    accountStatus: 'active',
+    suspendedUntil: null,
+    banReason: null,
   },
   sam: {
     id: '44444444-4444-4444-8444-444444444444',
     displayName: 'Sam Lim',
     role: 'employee',
+    accountStatus: 'active',
+    suspendedUntil: null,
+    banReason: null,
   },
   lee: {
     id: '22222222-2222-4222-8222-222222222222',
     displayName: 'Lee Santos',
     role: 'agent',
+    accountStatus: 'active',
+    suspendedUntil: null,
+    banReason: null,
   },
   ari: {
     id: '33333333-3333-4333-8333-333333333333',
     displayName: 'Ari Reyes',
     role: 'admin',
+    accountStatus: 'active',
+    suspendedUntil: null,
+    banReason: null,
   },
 } satisfies Record<string, ProfileRecord>;
 
@@ -54,6 +66,10 @@ export class InMemoryProfileDirectory implements ProfileDirectory {
       (profile) => profile.role !== 'employee'
     );
   }
+
+  async listAll() {
+    return [...this.profiles.values()];
+  }
 }
 
 export class FakeAuthVerifier implements AuthVerifier {
@@ -70,8 +86,12 @@ export class FakeAuthVerifier implements AuthVerifier {
       status: 'ok',
       context: {
         userId: profile.id,
+        email: `${key}@example.test`,
         role: profile.role,
         displayName: profile.displayName,
+        accountStatus: 'active',
+        suspendedUntil: null,
+        banReason: null,
       },
     };
   }

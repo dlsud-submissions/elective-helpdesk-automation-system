@@ -1,141 +1,258 @@
 # W-05 to W-08 Agent and Admin Views
 
-> Status: Low-fidelity wireframes for review. Endpoints are proposed, not implemented.
+> Status: Reflects the implemented Sprint 3–5 UI. Agent views are accessed via `/chat` and `/tickets`; admin views via `/queue`, `/admin/users`, and `/admin/kb-articles`.
 
-Roles: agent (W-05, W-06), admin (all) · Journeys: J3, J4, J5, J6 · Matrix: E2E-03, E2E-04, E2E-05, SI-05
+Roles: agent (W-05, W-06, W-06b), admin (W-07, W-07b, W-08) · Journeys: J3, J4, J5, J6 · Matrix: E2E-03, E2E-04, E2E-05, SI-05
 
-## W-05 Agent ticket queue
+---
 
-```text
-Desktop: list and detail side by side
-+-----------------------------------+--------------------------------+
-| Ticket queue                      |  TCK-2049 (see W-06)           |
-| [Search...      ] Status [Open v] |                                |
-| [ ] Escalated only  [x] Unassigned|                                |
-+-----------------------------------+                                |
-| > TCK-2049  [Escalated] High      |                                |
-|   VPN drops on home network       |                                |
-|   Dana Cruz · 5 min ago           |                                |
-|                                   |                                |
-|   TCK-2048  [Open] Medium         |                                |
-|   Wi-Fi disconnects               |                                |
-|   Dana Cruz · Oct 28              |                                |
-|                                   |                                |
-|   TCK-2045  [In progress] Low     |                                |
-|   Request for second monitor      |                                |
-|   Lee Santos · Oct 27 · You       |                                |
-+-----------------------------------+--------------------------------+
-```
+## W-05 Agent — My Tickets page (`/tickets`)
 
-| State   | Display                                                        |
-| :------ | :------------------------------------------------------------- |
-| Loading | Skeleton list.                                                 |
-| Empty   | "No tickets match these filters." with a Clear filters button. |
-| Error   | Inline alert with Retry.                                       |
-
-Escalated tickets sort first, then by priority, then by age.
-
-## W-06 Agent ticket detail
+Agents see only tickets assigned to them. Each ticket row may show an **Open in chat** link when the ticket has a linked conversation and is not yet resolved/closed.
 
 ```text
+My Tickets
 +--------------------------------------------------------------+
-| TCK-2049  VPN drops on home network   [Escalated]  High      |
-| Requester: Dana Cruz · Category: Network · Opened 10:15      |
-+--------------------------------------------------------------+
-| Escalation summary (AI-generated, check before acting)       |
-| | Reason: User requested agent                              |
-| | Symptoms: VPN disconnects every 10–15 min on home Wi-Fi.  |
-| | Tried: KB-121 reconnect steps, router restart.            |
-| | Sources: KB-121 VPN troubleshooting                       |
-| | Missing: VPN client version.                              |
+| > TCK-2005  [Open] Medium                                    |
+|   What is included in laptop onboarding?                     |
+|   Dana Cruz · 10:48 AM                        [Open in chat] |
 |                                                              |
-| [View full conversation]                                     |
-|                                                              |
-| Status   [In progress v]   Assigned to [Me v]   [Save]       |
-|                                                              |
-| (✓) Saved. Status changed to In progress.                    |
+| > TCK-2003  [Resolved] Low                                   |
+|   Request for second monitor                                 |
+|   Dana Cruz · Nov 19                                         |
 +--------------------------------------------------------------+
 ```
 
-| State      | Notes                                                                                          |
-| :--------- | :--------------------------------------------------------------------------------------------- |
-| Saving     | Save disabled and shows "Saving…".                                                             |
-| Saved      | Confirmation only after the API responds; the queue row updates.                               |
-| Conflict   | "This ticket was updated by someone else. Reload to see changes." (another agent saved first). |
-| Denied     | 403: "You don't have permission to update this ticket." Values revert. (SI-05)                 |
-| No summary | Ticket not from chat: summary panel is hidden and the description is shown instead.            |
+Clicking a ticket row opens **W-06 Ticket Detail** (status-only panel, no reply form).
 
-The escalation summary must not contain passwords, keys, or unnecessary personal data (E2E-04). It is labelled as AI-generated so agents verify it.
+---
 
-## W-07 Admin knowledge base
+## W-06 Agent — Ticket detail (`/tickets/:id`, agent view)
+
+Agents can only change status here. Sending replies to the employee is done via Chat (W-06b).
 
 ```text
+← Back to dashboard
+TCK-2005 · Medium priority
+What is included in laptop onboarding?
+Requester: Dana Cruz · Category: general · Opened 11/24/2026, 10:48:58 AM
+[Open]
+
+Description
+Reported in chat: What is included in laptop onboarding?
+
+Status
+[ Open ▾ ]   [Save]
+```
+
+| State    | Notes                                      |
+| :------- | :----------------------------------------- |
+| Saving   | Save button disabled, shows "Saving…".     |
+| Saved    | Confirmation alert after API responds.     |
+| Conflict | "Updated by someone else. Reload." (SI-05) |
+
+---
+
+## W-06b Agent — Chat page (`/chat/:conversationId`)
+
+Agents arrive here via the **Open in chat** link on My Tickets or the Queue page. The agent sees the full conversation history and can reply to the employee. Sending a message does **not** resolve the ticket; status changes happen in W-06.
+
+```text
+Ask IT
 +--------------------------------------------------------------+
-| Knowledge base                               [New article]   |
-| [Search...          ] Category [All v]  Show [All v]         |
-+--------------------------------------------------------------+
-| ID      Title                          Category   Published  |
-| KB-104  Connecting to office Wi-Fi     Network    [x] Yes    |
-| KB-117  Restarting a network adapter   Network    [x] Yes    |
-| KB-121  VPN troubleshooting            Network    [x] Yes    |
-| KB-130  Requesting new hardware        Hardware   [ ] Draft  |
+| TCK-2005 · medium priority · open                            |
+| What is included in laptop onboarding?                       |
+| Reported in chat: What is included in laptop onboarding?     |
+|                             [Mark ticket as resolved]        |
 +--------------------------------------------------------------+
 
-Article editor
+                                      Employee 10:48 AM
+                                      What is included in laptop onboarding?
+
+Harbor 10:48 AM
+Based on approved helpdesk guidance, Laptop onboarding checklist…
+[1] Laptop onboarding checklist · Endpoint Support SOP
+
+Ticket details 10:49 AM
+Ticket TCK-2005 assigned to Lee Santos.
+Title: What is included in laptop onboarding?
+Category: general  Priority: medium
+Description: Reported in chat: What is included in laptop onboarding?
+
+                                           You 11:37 AM
+                                           Hello! Laptop onboarding includes…
+
 +--------------------------------------------------------------+
-| Title *        [ Requesting new hardware                  ]  |
-| Category *     [ Hardware v ]   Source name [ IT Policy v2 ] |
-| Body *                                                       |
-| [ ...                                                     ]  |
-| [x] Published (available to the assistant after indexing)    |
-|                                        [Cancel]  [Save]      |
-| (i) Saving re-indexes this article for search.               |
+| Reply to requester                                           |
+| Message                                                      |
+| ┌──────────────────────────────────────────────────────┐    |
+| │                                                      │    |
+| └──────────────────────────────────────────────────────┘    |
+|                                              [✦] [💾] [Send]|
 +--------------------------------------------------------------+
 ```
 
-States: loading, empty ("No articles yet"), validation errors on required fields, save success, save failure, and "Indexing…" after save until the API confirms the article is searchable.
+- **Agent's own messages** appear on the right side labelled "You".
+- **Employee messages** appear on the left labelled "Employee".
+- **Harbor AI messages** appear on the left with the Harbor logo and "Harbor".
+- **System messages** (ticket assignment details) appear as a neutral info block.
+- **✦ icon** = Generate with Gemini (icon-only button, no label). Opens a draft in the message box.
+- **💾 icon** = Save response to database. Submits the current draft as a KB pair for admin review.
+- **Send** = Sends message to employee. Does **not** mark the ticket resolved.
+- **Mark ticket as resolved** = Changes ticket status to `resolved` via the API.
 
-## W-08 Admin support metrics
+| State      | Notes                                                                |
+| :--------- | :------------------------------------------------------------------- |
+| Sending    | Send button disabled; shows "Sending…".                              |
+| Sent       | Message appears in conversation; reply box clears.                   |
+| Generating | Gemini icon shows spinner; textarea populated with draft on success. |
+| KB saved   | 💾 button shows "Saved ✓"; awaits admin review in Solutions queue.   |
+| Error      | Inline alert with error message.                                     |
+
+---
+
+## W-07 Admin — Queue page (`/queue`)
+
+The Queue page has two subtabs: **Tickets** and **Solutions**.
+
+### W-07a Tickets subtab (`/queue` or `/queue?tab=tickets`)
 
 ```text
+Queue
+[ Tickets ]  [ Solutions ]
 +--------------------------------------------------------------+
-| Support metrics                     Range [Last 7 days v]    |
+| Status [Active ▾]  Assigned [All assignees ▾]               |
+| Created from [date]  Created to [date]                       |
 +--------------------------------------------------------------+
-| +-----------+ +-----------+ +-----------+ +-----------+      |
-| | Questions | | Answered  | | Tickets   | | Escalated |      |
-| |    142    | | in chat   | | opened    | |    9      |      |
-| |           | |   61%     | |    37     | |           |      |
-| +-----------+ +-----------+ +-----------+ +-----------+      |
+| > TCK-2005  [Escalated]  [Open]  Medium                      |
+|   What is included in laptop onboarding?                     |
+|   Dana Cruz · 5 min ago · Lee Santos                         |
 |                                                              |
-| Tickets by status          Top knowledge sources             |
-| Open         ███████  14   KB-104 Wi-Fi           31 cites   |
-| In progress  ████      8   KB-121 VPN             22 cites   |
-| Resolved     ██████   12   KB-117 Adapter         15 cites   |
-| Closed       █         3                                     |
+| > TCK-2003  [Resolved]  Low                                  |
+|   Request for second monitor                                 |
+|   Dana Cruz · Nov 19 · Lee Santos                            |
++--------------------------------------------------------------+
+                   (ticket detail opens in split panel →)
+```
+
+Clicking a ticket opens the ticket detail in a right split panel (same `TicketDetail` component as agent view but admin can also reassign).
+
+### W-07b Solutions subtab (`/queue?tab=solutions`)
+
+Lists agent-submitted problem → solution pairs with status `pending`, awaiting admin accept or deny.
+
+```text
+Queue
+[ Tickets ]  [ Solutions ]
++--------------------------------------------------------------+
+| Review agent-submitted problem → solution pairs              |
+| before they are saved to the knowledge base.                 |
++--------------------------------------------------------------+
+| Submitted by Lee Santos · 11/24/2026, 11:37:02 AM · TCK-2005|
+|                                                              |
+| Employee problem                                             |
+| Reported in chat: What is included in laptop onboarding?    |
+|                                                              |
+| Agent solution                                              |
+| Hello! Laptop onboarding includes…                          |
+|                                                              |
+| Admin note (optional)  [________________________]           |
+|                                                             |
+| [Accept]  [Deny]                                            |
 +--------------------------------------------------------------+
 ```
 
-Each chart has a text table alternative for screen readers. Empty range shows "No activity in this period."
+| State    | Notes                                        |
+| :------- | :------------------------------------------- |
+| No items | "No pending submissions."                    |
+| Saving   | Accept/Deny buttons disabled, "Saving…".     |
+| Accepted | Row disappears; pair visible in KB Articles. |
+| Denied   | Row disappears; pair marked denied.          |
+
+---
+
+## W-08 Admin — Knowledge Base (`/admin/kb-articles`)
+
+Shows **all** knowledge: seeded articles from `knowledge_articles` (Supabase) and accepted agent submissions from `kb_submissions`. Badges show the source type. Admin can also create new pairs directly (auto-accepted).
+
+```text
+Knowledge Base                                        [+ New]
+All problem → solution knowledge used by Harbor…
+
++--------------------------------------------------------------+
+| [Seeded]  IT Security Handbook · account-access             |
+| Problem / Title                                              |
+| Password reset after lockout                                 |
+| Solution                                                     |
+| To reset a locked account, verify the user identity…        |
++--------------------------------------------------------------+
+| [Agent submission]  Lee Santos · 11/24/2026, 11:37 AM       |
+| Problem / Title                                              |
+| What is included in laptop onboarding?                       |
+| Solution                                                     |
+| Hello! Laptop onboarding includes…                          |
++--------------------------------------------------------------+
+```
+
+**New pair form** (inline, toggled by [+ New]):
+
+```text
+New KB pair
+Employee problem / question
+[ textarea ]
+Solution
+[ textarea ]
+[Save]  [Cancel]
+```
+
+Admin-created pairs are auto-accepted (no queue step).
+
+| State      | Notes                                        |
+| :--------- | :------------------------------------------- |
+| Loading    | "Loading knowledge base…" spinner.           |
+| Empty      | "No articles yet. Accept submissions…"       |
+| Saved      | New pair appears at top of list immediately. |
+| Form error | "Both fields are required."                  |
+
+---
+
+## W-09 Admin — Users (`/admin/users`)
+
+Manage user accounts and roles. Existing behavior unchanged.
+
+---
+
+## W-10 Admin — Dashboard (`/dashboard`)
+
+Operational metrics. Shared with agents (agent sees own metrics, admin sees all). Existing behavior unchanged.
+
+---
 
 ## Data and actions
 
-| Screen | Action                 | Interface (proposed)                                                       | Data used by UI                                                                                                        |
-| :----- | :--------------------- | :------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| W-05   | List queue             | `GET /api/tickets?status=&assigned=&escalated=&q=`                         | `tickets[]`: `id`, `summary`, `status`, `priority`, `escalated`, `requester.display_name`, `assigned_to`, `updated_at` |
-| W-06   | Ticket detail          | `GET /api/tickets/:id`                                                     | ticket fields, `escalation` (`reason`, `summary`, `source_refs[]`), `conversation_id`                                  |
-| W-06   | Update status/assignee | `PATCH /api/tickets/:id`                                                   | request: `status`, `assigned_to`, `updated_at` (for conflict check); response: updated ticket                          |
-| W-06   | View conversation      | `GET /api/conversations/:id/messages`                                      | `messages[]`                                                                                                           |
-| W-07   | List/edit articles     | `GET /api/knowledge/articles`, `POST`, `PATCH /api/knowledge/articles/:id` | `id`, `title`, `category`, `source_name`, `body`, `is_published`, `updated_at`, `index_status`                         |
-| W-08   | Metrics                | `GET /api/metrics/summary?range=7d`                                        | `questions`, `answered_rate`, `tickets_opened`, `escalations`, `by_status{}`, `top_sources[]`                          |
+| Screen | Action                   | Endpoint                                                                  | Notes                                                           |
+| :----- | :----------------------- | :------------------------------------------------------------------------ | :-------------------------------------------------------------- |
+| W-06   | Update ticket status     | `PATCH /api/tickets/:id`                                                  | Agents only change status here; no reply form in ticket detail. |
+| W-06b  | Send agent message       | `POST /api/tickets/:id/reply`                                             | Adds `agent` message to conversation. Does not resolve ticket.  |
+| W-06b  | Generate Gemini draft    | `POST /api/tickets/:id/solution`                                          | Returns draft text; populates reply textarea.                   |
+| W-06b  | Save to KB queue         | `POST /api/kb-submissions`                                                | Submits (problem, solution) pair for admin review.              |
+| W-06b  | Mark ticket resolved     | `PATCH /api/tickets/:id` `{status: "resolved"}`                           | Resolves the linked ticket.                                     |
+| W-07a  | List/filter tickets      | `GET /api/tickets`                                                        | Admin sees all tickets; agent sees only assigned.               |
+| W-07b  | List pending submissions | `GET /api/kb-submissions?status=pending`                                  | Admin-only.                                                     |
+| W-07b  | Accept / deny submission | `PATCH /api/kb-submissions/:id`                                           | `{status: "accepted" \| "denied", adminNote?}`                  |
+| W-08   | List all KB articles     | `GET /api/knowledge/articles` + `GET /api/kb-submissions?status=accepted` | Combined view: seeded articles + accepted submissions.          |
+| W-08   | Create new KB pair       | `POST /api/kb-submissions` then `PATCH` to accept                         | Admin creates and immediately auto-accepts.                     |
 
-Every agent/admin write must be authorized by the API using `profiles.role` and recorded as an audit event. Hiding a button in the UI is only a convenience.
+---
 
 ## Responsive and accessibility
 
-- W-05 on tablet/mobile: the list is full width; selecting a ticket navigates to W-06 as its own page with a Back link.
-- Filters are real form controls with labels; the result count is announced politely after filtering.
-- Metric cards use text, not color alone; bar charts include the numeric value next to each bar.
-- The published checkbox in W-07 has a label that names the article, for example "Published: VPN troubleshooting".
+- W-07a on tablet/mobile: list is full width; selecting a ticket navigates to the detail as its own view with a Back link.
+- Subtabs (Tickets / Solutions) use `role="tablist"` / `role="tab"` / `role="tabpanel"`.
+- Agent message bubble: right-aligned with "You" label when the viewing user is the sender.
+- Employee message bubble: left-aligned with "Employee" label (agent view) or "You" label (employee view).
+- Filters are real `<select>` and `<input type="date">` elements with visible labels; result count announced politely after filter change.
+- Metric cards use text, not color alone.
 
 ---
 

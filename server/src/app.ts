@@ -28,7 +28,9 @@ import {
 } from './features/chat/index.js';
 import { helloRouter } from './features/hello/index.js';
 import { createKnowledgeRouter } from './features/knowledge/index.js';
+import { createKbSubmissionsRouter } from './features/kb-submissions/index.js';
 import type { KnowledgeService } from './features/knowledge/knowledge.service.js';
+import { GeminiTicketSolutionGenerator } from './shared/ai/gemini-ticket-solution.js';
 import {
   createTicketRouter,
   SupabaseTicketRepository,
@@ -66,12 +68,29 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
   const ticketService = new TicketService(
     deps.tickets,
     deps.profiles,
-    deps.conversations
+    deps.conversations,
+    new GeminiTicketSolutionGenerator()
   );
   const conversationService = new ConversationService(
     deps.conversations,
     deps.answer,
-    deps.answerTimeoutMs
+    deps.answerTimeoutMs,
+    {
+      listConversationIdsForAgent: async (agentId) =>
+        (await deps.tickets.list({ assignedTo: agentId }))
+          .map((ticket) => ticket.conversationId)
+          .filter((id): id is string => id !== null),
+      isAssignedToAgent: async (conversationId, agentId) =>
+        (await deps.tickets.findByConversationId(conversationId))
+          ?.assignedTo === agentId,
+      isResolvedAndAssignedToAgent: async (conversationId, agentId) => {
+        const ticket = await deps.tickets.findByConversationId(conversationId);
+        return (
+          ticket?.assignedTo === agentId &&
+          (ticket.status === 'resolved' || ticket.status === 'closed')
+        );
+      },
+    }
   );
   const analyticsService = new AnalyticsService({
     listAll: () => deps.tickets.list({}),
@@ -90,6 +109,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
   app.use(createAuthRouter({ requireAuth, profiles: deps.profiles }));
   app.use(createTicketRouter({ requireAuth, tickets: ticketService }));
   app.use(createKnowledgeRouter({ requireAuth, service: overrides.knowledge }));
+  app.use(createKbSubmissionsRouter({ requireAuth }));
   app.use(
     createChatRouter({ requireAuth, conversations: conversationService })
   );

@@ -71,7 +71,7 @@ export function kindForStatus(status: number): ApiErrorKind {
 }
 
 export type ApiRequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   timeoutMs?: number;
   idempotencyKey?: string;
