@@ -19,6 +19,7 @@ import {
 } from '../../tickets';
 import {
   generateTicketSolution,
+  saveTicketSolutionDraft,
   sendTicketReply,
 } from '../../tickets/api/tickets.api';
 import { submitKbPair } from '../../knowledge/api/kb-submissions.api';
@@ -99,7 +100,6 @@ export function ChatPage() {
   >('idle');
   const [agentReplyError, setAgentReplyError] = useState('');
   const [generatingSolution, setGeneratingSolution] = useState(false);
-  const [generatedSolution, setGeneratedSolution] = useState('');
   const [generatedModel, setGeneratedModel] = useState('');
   const [savingSolution, setSavingSolution] = useState(false);
   const [solutionSaved, setSolutionSaved] = useState(false);
@@ -162,7 +162,6 @@ export function ChatPage() {
     setAgentReply('');
     setAgentReplyState('idle');
     setAgentReplyError('');
-    setGeneratedSolution('');
     setGeneratedModel('');
     setSolutionSaved(false);
     setSolutionActionError('');
@@ -310,7 +309,6 @@ export function ChatPage() {
     setSolutionActionError('');
     try {
       const generated = await generateTicketSolution(currentTicket.id);
-      setGeneratedSolution(generated.content);
       setGeneratedModel(generated.model);
       setAgentReply(generated.content);
       setAgentReplyState('idle');
@@ -332,13 +330,26 @@ export function ChatPage() {
       await sendTicketReply(currentTicket.id, agentReply.trim());
       setAgentReply('');
       setAgentReplyState('sent');
-      setGeneratedSolution('');
       setSolutionSaved(false);
       // Reload messages so the new agent message appears in the chat
       if (routeId) void loadHistory(routeId);
     } catch (error) {
       setAgentReplyError(toApiError(error).message);
       setAgentReplyState('failed');
+    }
+  };
+
+  const saveSolutionDraft = async () => {
+    if (!currentTicket || !agentReply.trim() || savingSolution) return;
+    setSavingSolution(true);
+    setSolutionActionError('');
+    try {
+      await saveTicketSolutionDraft(currentTicket.id, agentReply.trim());
+      setSolutionSaved(true);
+    } catch (error) {
+      setSolutionActionError(toApiError(error).message);
+    } finally {
+      setSavingSolution(false);
     }
   };
 
@@ -600,6 +611,7 @@ export function ChatPage() {
                 onChange={(event) => {
                   setAgentReply(event.target.value);
                   if (agentReplyState !== 'idle') setAgentReplyState('idle');
+                  setSolutionSaved(false);
                   if (kbSaveState !== 'idle') setKbSaveState('idle');
                 }}
                 rows={5}
@@ -645,6 +657,23 @@ export function ChatPage() {
                     <path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" />
                   </svg>
                 )}
+              </button>
+
+              <button
+                type="button"
+                className="button button--secondary"
+                disabled={
+                  savingSolution ||
+                  agentReplyState === 'sending' ||
+                  !agentReply.trim()
+                }
+                onClick={() => void saveSolutionDraft()}
+              >
+                {savingSolution
+                  ? 'Saving draft…'
+                  : solutionSaved
+                    ? 'Draft saved'
+                    : 'Save draft'}
               </button>
 
               <button

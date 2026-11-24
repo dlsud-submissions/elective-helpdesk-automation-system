@@ -1,10 +1,5 @@
 import { Router, type RequestHandler } from 'express';
-import {
-  handle,
-  badRequest,
-  forbidden,
-  notFound,
-} from '../../shared/http/errors.js';
+import { handle, badRequest, notFound } from '../../shared/http/errors.js';
 import { getAuth, requireRole } from '../auth/index.js';
 import { isUuid } from '../../shared/validation/uuid.js';
 import { kbSubmissionRepository } from './kb-submissions.repository.js';

@@ -160,7 +160,7 @@ describe('employee chat (S3-02, S3-03)', () => {
     const items = within(screen.getByRole('log'))
       .getAllByRole('article')
       .map((article) => article.getAttribute('aria-label'));
-    expect(items).toEqual(['You', 'Assistant', 'You', 'Assistant']);
+    expect(items).toEqual(['You', 'Harbor', 'You', 'Harbor']);
   });
 
   it('shows the uncertain state and creates a ticket only after persistence', async () => {

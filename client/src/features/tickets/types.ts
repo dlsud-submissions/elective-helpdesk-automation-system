@@ -42,6 +42,7 @@ export type StaffMember = {
 export type TicketUpdate = {
   status?: TicketStatus;
   assigneeId?: string | null;
+  notes?: string;
   expectedUpdatedAt: string;
 };
 

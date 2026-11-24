@@ -363,7 +363,7 @@ export function TicketQueuePage() {
   };
 
   // ticket save handler is lifted here so TicketsTab can be a child
-  const handleTicketSaved = useCallback((_ticket: Ticket) => {
+  const handleTicketSaved = useCallback(() => {
     // TicketsTab manages its own state; this callback is a no-op at this level
   }, []);
 

@@ -1,8 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  getServiceClient,
-  databaseError,
-} from '../../shared/database/index.js';
+import { getServiceClient } from '../../shared/database/index.js';
 import type {
   KbSubmission,
   KbSubmissionStatus,

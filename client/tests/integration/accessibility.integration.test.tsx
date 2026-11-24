@@ -194,9 +194,7 @@ describe('accessibility regressions (S4-06)', () => {
       'role',
       'status'
     );
-    await waitFor(() =>
-      expect(document.title).toBe('Ticket queue · Harbor Tickets')
-    );
+    await waitFor(() => expect(document.title).toBe('Queue · Harbor Tickets'));
   });
 
   it('shows dashboard totals without date-range controls', async () => {

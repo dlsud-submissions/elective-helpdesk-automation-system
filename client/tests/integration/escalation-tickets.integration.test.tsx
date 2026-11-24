@@ -279,10 +279,12 @@ describe('my tickets (employee ticket view)', () => {
     );
     renderApp('/tickets');
     const list = await screen.findByRole('list', { name: 'Assigned tickets' });
-    expect(within(list).getAllByRole('link')).toHaveLength(1);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
     expect(list).toHaveTextContent('TCK-3000');
     expect(list).not.toHaveTextContent('TCK-3001');
-    expect(within(list).getByRole('link')).toHaveAttribute(
+    expect(
+      within(list).getByRole('link', { name: /TCK-3000/ })
+    ).toHaveAttribute(
       'href',
       '/dashboard/ffffffff-ffff-4fff-8fff-ffffffffffff'
     );

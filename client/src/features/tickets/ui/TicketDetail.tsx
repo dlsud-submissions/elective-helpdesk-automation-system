@@ -35,6 +35,7 @@ export function TicketDetail({
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [status, setStatus] = useState<TicketStatus>('new');
   const [assignee, setAssignee] = useState('');
+  const [notes, setNotes] = useState('');
   const [save, setSave] = useState<SaveState>({ status: 'idle' });
   const profile = useProfile();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -80,7 +81,9 @@ export function TicketDetail({
   if (!ticket) return <LoadingState label="Loading ticket…" />;
 
   const dirty =
-    status !== ticket.status || assignee !== (ticket.assignedTo ?? '');
+    status !== ticket.status ||
+    assignee !== (ticket.assignedTo ?? '') ||
+    (profile.role === 'agent' && Boolean(notes.trim()));
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -93,10 +96,14 @@ export function TicketDetail({
         ...(assignee !== (ticket.assignedTo ?? '')
           ? { assigneeId: assignee || null }
           : {}),
+        ...(profile.role === 'agent' && notes.trim()
+          ? { notes: notes.trim() }
+          : {}),
       });
       setTicket(updated);
       setStatus(updated.status);
       setAssignee(updated.assignedTo ?? '');
+      setNotes('');
       onSaved(updated);
       setSave({
         status: 'saved',
@@ -141,6 +148,19 @@ export function TicketDetail({
           </span>
         </p>
       </header>
+
+      {profile.role === 'agent' ? (
+        <label className="field">
+          <span>Solution or follow-up</span>
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            rows={4}
+            placeholder="Record the solution or next follow-up…"
+            disabled={save.status === 'saving'}
+          />
+        </label>
+      ) : null}
 
       {ticket.escalationSummary ? (
         <section className="callout" aria-labelledby="summary-title">

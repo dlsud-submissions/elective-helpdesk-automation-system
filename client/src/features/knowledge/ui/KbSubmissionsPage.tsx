@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toApiError } from '../../../shared/api/http';
-import { ErrorState, LoadingState } from '../../../shared/ui/StatusViews';
+import { LoadingState } from '../../../shared/ui/StatusViews';
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import {
   listKbSubmissions,
