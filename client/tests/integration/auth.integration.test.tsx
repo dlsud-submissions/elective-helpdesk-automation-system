@@ -102,6 +102,44 @@ describe('sign-in and role-aware routing (S3-01)', () => {
     ).toBeInTheDocument();
   });
 
+  it('rejects staff accounts from employee login and clears the authenticated session', async () => {
+    mockApi(
+      (call) =>
+        meHandler(profiles.lee)(call) ??
+        (call.path === '/api/tickets'
+          ? { status: 200, body: { tickets: [] } }
+          : undefined)
+    );
+    renderApp('/login');
+
+    await signIn('lee.agent@example.test', 'Password123!');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This login is for employees only.'
+    );
+    expect(fake.auth.signOut).toHaveBeenCalled();
+    expect(fake.session).toBeNull();
+    expect(
+      screen.getByRole('heading', { name: 'Sign in to get IT help' })
+    ).toBeInTheDocument();
+  });
+
+  it('rejects employee accounts from staff login and clears the authenticated session', async () => {
+    mockApi(meHandler(profiles.dana));
+    renderApp('/staff-login');
+
+    await signIn('dana.cruz@example.test', 'Password123!');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This login is for agents and admins only.'
+    );
+    expect(fake.auth.signOut).toHaveBeenCalled();
+    expect(fake.session).toBeNull();
+    expect(
+      screen.getByRole('heading', { name: 'Staff login' })
+    ).toBeInTheDocument();
+  });
+
   it('signs an employee in, sends the bearer token, and hides staff nav', async () => {
     const { calls } = mockApi(
       (call) =>

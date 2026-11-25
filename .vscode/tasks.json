@@ -1,353 +1,378 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "🌐 Client: Dev",
-      "type": "npm",
-      "script": "start",
-      "path": "client",
-      "presentation": {
-        "group": "dev-env",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🖥️ Server: Dev",
-      "type": "npm",
-      "script": "dev",
-      "path": "server",
-      "presentation": {
-        "group": "dev-env",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🚀 Dev: Start All",
-      "dependsOn": ["🌐 Client: Dev", "🖥️ Server: Dev"],
-      "dependsOrder": "parallel",
-      "presentation": { "reveal": "silent" }
-    },
-    {
-      "label": "🧪 Client: Tests (watch)",
-      "type": "npm",
-      "script": "test:watch",
-      "path": "client",
-      "presentation": {
-        "group": "testing",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🧪 Client: Tests (run once)",
-      "type": "npm",
-      "script": "test:run",
-      "path": "client",
-      "presentation": {
-        "group": "testing",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🧪 Server: Tests (watch)",
-      "type": "npm",
-      "script": "test:watch",
-      "path": "server",
-      "presentation": {
-        "group": "testing",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🧪 Server: Tests (run once)",
-      "type": "npm",
-      "script": "test",
-      "path": "server",
-      "options": {
-        "env": {
-          "NODE_ENV": "test",
-          "CORS_ALLOWED_ORIGINS": "http://localhost:5173"
-        }
-      },
-      "presentation": {
-        "group": "testing",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🧹 Client: Lint",
-      "type": "npm",
-      "script": "lint",
-      "path": "client",
-      "problemMatcher": ["$eslint-stylish"],
-      "presentation": {
-        "group": "quality",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🧹 Server: Lint",
-      "type": "npm",
-      "script": "lint",
-      "path": "server",
-      "problemMatcher": ["$eslint-stylish"],
-      "presentation": {
-        "group": "quality",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "📝 Create Env Files",
-      "type": "npm",
-      "script": "env:create",
-      "path": ".",
-      "presentation": {
-        "group": "setup",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "✨ Format: Check",
-      "type": "npm",
-      "script": "format:check",
-      "path": ".",
-      "presentation": {
-        "group": "quality",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "✨ Format: Fix",
-      "type": "npm",
-      "script": "format",
-      "path": ".",
-      "presentation": {
-        "group": "quality",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🏗️ Client: Build",
-      "type": "npm",
-      "script": "build",
-      "path": "client",
-      "presentation": {
-        "group": "build",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🏗️ Server: Build",
-      "type": "npm",
-      "script": "build",
-      "path": "server",
-      "presentation": {
-        "group": "build",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "✅ Client: Typecheck",
-      "type": "npm",
-      "script": "typecheck",
-      "path": "client",
-      "presentation": {
-        "group": "quality",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "✅ Server: Typecheck",
-      "type": "npm",
-      "script": "typecheck",
-      "path": "server",
-      "presentation": {
-        "group": "quality",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "✅ CI: Verify All",
-      "dependsOn": [
-        "🧪 Client: Tests (run once)",
-        "🧪 Server: Tests (run once)",
-        "🧹 Client: Lint",
-        "🧹 Server: Lint",
-        "✨ Format: Check",
-        "🏗️ Client: Build",
-        "🏗️ Server: Build",
-        "✅ Client: Typecheck",
-        "✅ Server: Typecheck"
-      ],
-      "dependsOrder": "parallel",
-      "presentation": { "reveal": "silent" }
-    },
-    {
-      "label": "📦 Install All Dependencies",
-      "type": "npm",
-      "script": "install:all",
-      "path": ".",
-      "presentation": { "panel": "shared", "reveal": "always" }
-    },
-    {
-      "label": "🔑 Supabase: Login",
-      "type": "npm",
-      "script": "supabase:login",
-      "path": ".",
-      "detail": "Sign in to the Supabase CLI (opens a browser). Run once per machine before linking.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always",
-        "focus": true
-      }
-    },
-    {
-      "label": "🚪 Supabase: Logout",
-      "type": "npm",
-      "script": "supabase:logout",
-      "path": ".",
-      "detail": "Remove the Supabase CLI access token from this machine.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always",
-        "focus": true
-      }
-    },
-    {
-      "label": "🔗 Supabase: Link Project",
-      "type": "npm",
-      "script": "supabase:link",
-      "path": ".",
-      "detail": "Pick the hosted project to link from an interactive list. Requires login.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always",
-        "focus": true
-      }
-    },
-    {
-      "label": "▶️ Supabase: Start Local DB (Docker)",
-      "type": "npm",
-      "script": "supabase:start",
-      "path": ".",
-      "detail": "Start the local Supabase database and Docker services.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "⏹️ Supabase: Stop Local Stack",
-      "type": "npm",
-      "script": "supabase:stop",
-      "path": ".",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "ℹ️ Supabase: Local Status",
-      "type": "npm",
-      "script": "supabase:status",
-      "path": ".",
-      "detail": "Show local URLs and keys to copy into client/.env and server/.env.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🚀 Supabase: Push Migrations to Local DB",
-      "type": "npm",
-      "script": "supabase:push:local",
-      "path": ".",
-      "detail": "Apply pending migrations to the local Docker database.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🚀 Supabase: Push Migrations to Linked Project",
-      "type": "npm",
-      "script": "supabase:push",
-      "path": ".",
-      "detail": "Apply pending migrations to the currently linked Supabase project. Verify the target before running; the linked project may be production.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "⚠️ Supabase: Reset Linked DB (DESTRUCTIVE)",
-      "type": "npm",
-      "script": "supabase:reset",
-      "path": ".",
-      "detail": "DESTRUCTIVE: reset the currently linked remote database to its migrations and run configured seed SQL. Verify the linked project before confirming; it may be production.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🌱 Supabase: Seed Linked DB",
-      "type": "npm",
-      "script": "supabase:seed",
-      "path": ".",
-      "detail": "Run idempotent supabase/seed.sql against the linked remote project without resetting it. Push migrations first. Creates accounts with a known password; never use production/shared data.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🏠 Supabase: Reset Local DB",
-      "type": "npm",
-      "script": "supabase:reset:local",
-      "path": ".",
-      "detail": "Rebuild the local database from migrations without running supabase/seed.sql.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "🌱 Supabase: Seed Local DB",
-      "type": "npm",
-      "script": "supabase:seed:local",
-      "path": ".",
-      "detail": "Run supabase/seed.sql against the local database without resetting it. Apply migrations first.",
-      "presentation": {
-        "group": "supabase",
-        "panel": "shared",
-        "reveal": "always"
-      }
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "🌐 Client: Dev",
+			"type": "npm",
+			"script": "start",
+			"path": "client",
+			"presentation": {
+				"group": "dev-env",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🖥️ Server: Dev",
+			"type": "npm",
+			"script": "dev",
+			"path": "server",
+			"presentation": {
+				"group": "dev-env",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🚀 Dev: Start All",
+			"dependsOn": [
+				"🌐 Client: Dev",
+				"🖥️ Server: Dev"
+			],
+			"dependsOrder": "parallel",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"label": "🧪 Client: Tests (watch)",
+			"type": "npm",
+			"script": "test:watch",
+			"path": "client",
+			"presentation": {
+				"group": "testing",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🧪 Client: Tests (run once)",
+			"type": "npm",
+			"script": "test:run",
+			"path": "client",
+			"presentation": {
+				"group": "testing",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🧪 Server: Tests (watch)",
+			"type": "npm",
+			"script": "test:watch",
+			"path": "server",
+			"presentation": {
+				"group": "testing",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🧪 Server: Tests (run once)",
+			"type": "npm",
+			"script": "test",
+			"path": "server",
+			"options": {
+				"env": {
+					"NODE_ENV": "test",
+					"CORS_ALLOWED_ORIGINS": "http://localhost:5173"
+				}
+			},
+			"presentation": {
+				"group": "testing",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🧹 Client: Lint",
+			"type": "npm",
+			"script": "lint",
+			"path": "client",
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"presentation": {
+				"group": "quality",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🧹 Server: Lint",
+			"type": "npm",
+			"script": "lint",
+			"path": "server",
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"presentation": {
+				"group": "quality",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "📝 Create Env Files",
+			"type": "npm",
+			"script": "env:create",
+			"path": ".",
+			"presentation": {
+				"group": "setup",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "✨ Format: Check",
+			"type": "npm",
+			"script": "format:check",
+			"path": ".",
+			"presentation": {
+				"group": "quality",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "✨ Format: Fix",
+			"type": "npm",
+			"script": "format",
+			"path": ".",
+			"presentation": {
+				"group": "quality",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🏗️ Client: Build",
+			"type": "npm",
+			"script": "build",
+			"path": "client",
+			"presentation": {
+				"group": "build",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🏗️ Server: Build",
+			"type": "npm",
+			"script": "build",
+			"path": "server",
+			"presentation": {
+				"group": "build",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "✅ Client: Typecheck",
+			"type": "npm",
+			"script": "typecheck",
+			"path": "client",
+			"presentation": {
+				"group": "quality",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "✅ Server: Typecheck",
+			"type": "npm",
+			"script": "typecheck",
+			"path": "server",
+			"presentation": {
+				"group": "quality",
+				"panel": "dedicated",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "✅ CI: Verify All",
+			"dependsOn": [
+				"🧪 Client: Tests (run once)",
+				"🧪 Server: Tests (run once)",
+				"🧹 Client: Lint",
+				"🧹 Server: Lint",
+				"✨ Format: Check",
+				"🏗️ Client: Build",
+				"🏗️ Server: Build",
+				"✅ Client: Typecheck",
+				"✅ Server: Typecheck"
+			],
+			"dependsOrder": "parallel",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"label": "📦 Install All Dependencies",
+			"type": "npm",
+			"script": "install:all",
+			"path": ".",
+			"presentation": {
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🔑 Supabase: Login",
+			"type": "npm",
+			"script": "supabase:login",
+			"path": ".",
+			"detail": "Sign in to the Supabase CLI (opens a browser). Run once per machine before linking.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always",
+				"focus": true
+			}
+		},
+		{
+			"label": "🚪 Supabase: Logout",
+			"type": "npm",
+			"script": "supabase:logout",
+			"path": ".",
+			"detail": "Remove the Supabase CLI access token from this machine.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always",
+				"focus": true
+			}
+		},
+		{
+			"label": "🔗 Supabase: Link Project",
+			"type": "npm",
+			"script": "supabase:link",
+			"path": ".",
+			"detail": "Pick the hosted project to link from an interactive list. Requires login.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always",
+				"focus": true
+			}
+		},
+		{
+			"label": "▶️ Supabase: Start Local DB (Docker)",
+			"type": "npm",
+			"script": "supabase:start",
+			"path": ".",
+			"detail": "Start the local Supabase database and Docker services.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "⏹️ Supabase: Stop Local Stack",
+			"type": "npm",
+			"script": "supabase:stop",
+			"path": ".",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "ℹ️ Supabase: Local Status",
+			"type": "npm",
+			"script": "supabase:status",
+			"path": ".",
+			"detail": "Show local URLs and keys to copy into client/.env and server/.env.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🚀 Supabase: Push Migrations to Local DB",
+			"type": "npm",
+			"script": "supabase:push:local",
+			"path": ".",
+			"detail": "Apply pending migrations to the local Docker database.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🚀 Supabase: Push Migrations to Linked Project",
+			"type": "npm",
+			"script": "supabase:push",
+			"path": ".",
+			"detail": "Apply pending migrations to the currently linked Supabase project. Verify the target before running; the linked project may be production.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "⚠️ Supabase: Reset Linked DB (DESTRUCTIVE)",
+			"type": "npm",
+			"script": "supabase:reset",
+			"path": ".",
+			"detail": "DESTRUCTIVE: reset the currently linked remote database to its migrations and run configured seed SQL. Verify the linked project before confirming; it may be production.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🌱 Supabase: Seed Linked DB",
+			"type": "npm",
+			"script": "supabase:seed",
+			"path": ".",
+			"detail": "Run idempotent supabase/seed.sql against the linked remote project without resetting it. Push migrations first. Creates accounts with a known password; never use production/shared data.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🏠 Supabase: Reset Local DB",
+			"type": "npm",
+			"script": "supabase:reset:local",
+			"path": ".",
+			"detail": "Rebuild the local database from migrations without running supabase/seed.sql.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "🌱 Supabase: Seed Local DB",
+			"type": "npm",
+			"script": "supabase:seed:local",
+			"path": ".",
+			"detail": "Run supabase/seed.sql against the local database without resetting it. Apply migrations first.",
+			"presentation": {
+				"group": "supabase",
+				"panel": "shared",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Start Helpdesk App",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
 }

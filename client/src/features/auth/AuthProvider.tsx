@@ -199,11 +199,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const profile = await loadProfile();
       if (profile.kind === 'ok') {
-        if (staffOnly && profile.profile.role === 'employee') {
+        const roleMatchesLogin = staffOnly
+          ? profile.profile.role === 'agent' || profile.profile.role === 'admin'
+          : profile.profile.role === 'employee';
+        if (!roleMatchesLogin) {
           await clearSession('signedOut');
           return {
             ok: false,
-            message: 'This login is for agents and admins only.',
+            message: staffOnly
+              ? 'This login is for agents and admins only.'
+              : 'This login is for employees only.',
           };
         }
         await applyProfileResult(profile, token);
