@@ -27,7 +27,9 @@
       "label": "🚀 Dev: Start All",
       "dependsOn": ["🌐 Client: Dev", "🖥️ Server: Dev"],
       "dependsOrder": "parallel",
-      "presentation": { "reveal": "silent" }
+      "presentation": {
+        "reveal": "silent"
+      }
     },
     {
       "label": "🧪 Client: Tests (watch)",
@@ -194,14 +196,19 @@
         "✅ Server: Typecheck"
       ],
       "dependsOrder": "parallel",
-      "presentation": { "reveal": "silent" }
+      "presentation": {
+        "reveal": "silent"
+      }
     },
     {
       "label": "📦 Install All Dependencies",
       "type": "npm",
       "script": "install:all",
       "path": ".",
-      "presentation": { "panel": "shared", "reveal": "always" }
+      "presentation": {
+        "panel": "shared",
+        "reveal": "always"
+      }
     },
     {
       "label": "🔑 Supabase: Login",
@@ -348,6 +355,14 @@
         "panel": "shared",
         "reveal": "always"
       }
+    },
+    {
+      "label": "Start Helpdesk App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "isBackground": true,
+      "problemMatcher": []
     }
   ]
 }
