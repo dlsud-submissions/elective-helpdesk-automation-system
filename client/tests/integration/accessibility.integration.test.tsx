@@ -18,6 +18,7 @@ import {
 let fake: FakeSupabase;
 vi.mock('../../src/shared/supabase/client', () => ({
   getSupabase: () => fake,
+  setSessionPersistence: vi.fn(),
 }));
 
 const employeeApi = (call: ApiCall) =>
@@ -209,14 +210,7 @@ describe('accessibility regressions (S4-06)', () => {
                 summary: {
                   totalTickets: 0,
                   assignedTickets: 0,
-                  byStatus: {
-                    new: 0,
-                    open: 0,
-                    in_progress: 0,
-                    pending: 0,
-                    resolved: 0,
-                    closed: 0,
-                  },
+                  byStatus: { pending: 0, in_progress: 0, resolved: 0 },
                   openByPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
                 },
               },

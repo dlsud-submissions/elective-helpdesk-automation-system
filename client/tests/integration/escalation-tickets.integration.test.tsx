@@ -13,6 +13,7 @@ import {
 let fake: FakeSupabase;
 vi.mock('../../src/shared/supabase/client', () => ({
   getSupabase: () => fake,
+  setSessionPersistence: vi.fn(),
 }));
 
 const CONVERSATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -58,7 +59,8 @@ function ticket(overrides: Record<string, unknown> = {}) {
     description: 'Printer shows offline',
     category: 'other',
     priority: 'medium',
-    status: 'open',
+    status: 'pending',
+    isOpen: true,
     requesterId: profiles.dana.id,
     requesterName: 'Dana Cruz',
     assignedTo: null,
@@ -115,7 +117,7 @@ describe('chat tickets and employee ticket view', () => {
         if (call.path === '/api/tickets' && call.method === 'POST') {
           return {
             status: 201,
-            body: { ticket: ticket({ isEscalated: false, status: 'new' }) },
+            body: { ticket: ticket({ isEscalated: false, status: 'pending' }) },
           };
         }
         return undefined;
@@ -220,7 +222,7 @@ describe('my tickets (employee ticket view)', () => {
     });
     await waitFor(() => expect(heading).toHaveFocus());
     expect(screen.getByText('Lee Santos')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Status')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Open the related chat' })
     ).toHaveAttribute('href', `/chat/${CONVERSATION_ID}`);
@@ -251,32 +253,50 @@ describe('my tickets (employee ticket view)', () => {
 
   it('shows an agent tickets assigned to them, not tickets they requested', async () => {
     fake = createFakeSupabase({ session: { access_token: 'lee-token' } });
-    mockApi(
-      (call) =>
-        meHandler(profiles.lee)(call) ??
-        (call.path === '/api/tickets'
-          ? {
-              status: 200,
-              body: {
-                tickets: [
-                  ticket({
-                    id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
-                    reference: 'TCK-3000',
-                    requesterId: profiles.dana.id,
-                    assignedTo: profiles.lee.id,
-                    assigneeName: 'Lee Santos',
-                  }),
-                  ticket({
-                    id: '99999999-9999-4999-8999-999999999999',
-                    reference: 'TCK-3001',
-                    requesterId: profiles.lee.id,
-                    assignedTo: profiles.ari.id,
-                  }),
-                ],
-              },
-            }
-          : undefined)
-    );
+    mockApi((call) => {
+      const me = meHandler(profiles.lee)(call);
+      if (me) return me;
+      if (
+        call.path === `/api/tickets/ffffffff-ffff-4fff-8fff-ffffffffffff` &&
+        call.method === 'PATCH'
+      ) {
+        return {
+          status: 200,
+          body: {
+            ticket: ticket({
+              id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+              reference: 'TCK-3000',
+              status: 'in_progress',
+              requesterId: profiles.dana.id,
+              assignedTo: profiles.lee.id,
+              assigneeName: 'Lee Santos',
+            }),
+          },
+        };
+      }
+      return call.path === '/api/tickets'
+        ? {
+            status: 200,
+            body: {
+              tickets: [
+                ticket({
+                  id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+                  reference: 'TCK-3000',
+                  requesterId: profiles.dana.id,
+                  assignedTo: profiles.lee.id,
+                  assigneeName: 'Lee Santos',
+                }),
+                ticket({
+                  id: '99999999-9999-4999-8999-999999999999',
+                  reference: 'TCK-3001',
+                  requesterId: profiles.lee.id,
+                  assignedTo: profiles.ari.id,
+                }),
+              ],
+            },
+          }
+        : undefined;
+    });
     renderApp('/tickets');
     const list = await screen.findByRole('list', { name: 'Assigned tickets' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
@@ -289,5 +309,15 @@ describe('my tickets (employee ticket view)', () => {
       '/dashboard/ffffffff-ffff-4fff-8fff-ffffffffffff'
     );
     expect(screen.queryByRole('link', { name: 'Ask IT in chat' })).toBeNull();
+    const status = within(list).getByLabelText('Status for TCK-3000');
+    expect(status).toHaveValue('pending');
+    fireEvent.change(status, { target: { value: 'in_progress' } });
+    await waitFor(() => expect(status).toHaveValue('in_progress'));
+    fireEvent.change(screen.getByLabelText('Search tickets'), {
+      target: { value: 'no matching ticket' },
+    });
+    expect(
+      await screen.findByText('No tickets match your search and filters.')
+    ).toBeInTheDocument();
   });
 });

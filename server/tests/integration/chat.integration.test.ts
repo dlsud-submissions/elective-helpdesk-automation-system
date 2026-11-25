@@ -132,6 +132,7 @@ describe('chat messages and conversation history', () => {
         description: 'The VPN drops frequently.',
         conversationId: assignedChat.body.conversationId,
       });
+
     await request(app)
       .patch(`/api/tickets/${ticket.body.ticket.id}`)
       .set('Authorization', bearer('ari'))
@@ -175,6 +176,57 @@ describe('chat messages and conversation history', () => {
     expect(agentSend.status).toBe(403);
     expect(adminList.status).toBe(403);
     expect(adminSend.status).toBe(403);
+  });
+
+  it('tracks unread chat messages per role and allows authorized mark-read', async () => {
+    const { app } = createTestApp();
+    const chat = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('dana'))
+      .send({ content: 'Please help with VPN access.' });
+    const ticket = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', bearer('dana'))
+      .set('Idempotency-Key', 'unread-ticket')
+      .send({
+        title: 'VPN access',
+        description: 'VPN access fails.',
+        conversationId: chat.body.conversationId,
+      });
+    await request(app)
+      .patch(`/api/tickets/${ticket.body.ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
+
+    const agentList = await request(app)
+      .get('/api/conversations')
+      .set('Authorization', bearer('lee'));
+    expect(agentList.body.conversations[0].isUnread).toBe(true);
+
+    const marked = await request(app)
+      .post(`/api/conversations/${chat.body.conversationId}/read`)
+      .set('Authorization', bearer('lee'))
+      .send({});
+    expect(marked.status).toBe(204);
+    const readList = await request(app)
+      .get('/api/conversations')
+      .set('Authorization', bearer('lee'));
+    expect(readList.body.conversations[0].isUnread).toBe(false);
+
+    await request(app)
+      .post(`/api/tickets/${ticket.body.ticket.id}/messages`)
+      .set('Authorization', bearer('lee'))
+      .send({ content: 'I can help with that.' });
+    const employeeList = await request(app)
+      .get('/api/conversations')
+      .set('Authorization', bearer('dana'));
+    expect(employeeList.body.conversations[0].isUnread).toBe(true);
+
+    const unauthorized = await request(app)
+      .post(`/api/conversations/${chat.body.conversationId}/read`)
+      .set('Authorization', bearer('sam'))
+      .send({});
+    expect(unauthorized.status).toBe(404);
   });
 
   it('allows agents to archive or delete assigned chats only after resolution', async () => {

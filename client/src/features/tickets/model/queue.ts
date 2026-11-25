@@ -1,12 +1,9 @@
 import type { Ticket, TicketPriority, TicketStatus } from '../types';
 
 export const statusLabels: Record<TicketStatus, string> = {
-  new: 'New',
-  open: 'Open',
-  in_progress: 'In progress',
   pending: 'Pending',
+  in_progress: 'In progress',
   resolved: 'Resolved',
-  closed: 'Closed',
 };
 
 export const priorityLabels: Record<TicketPriority, string> = {
@@ -17,18 +14,10 @@ export const priorityLabels: Record<TicketPriority, string> = {
 };
 
 /** Mirrors server transitions for the select; the API remains authoritative. */
-export const validTransitions: Record<TicketStatus, TicketStatus[]> = {
-  new: ['open', 'in_progress', 'resolved'],
-  open: ['in_progress', 'pending', 'resolved'],
-  in_progress: ['pending', 'resolved'],
-  pending: ['open', 'resolved'],
-  resolved: ['closed'],
-  closed: [],
-};
-
-export const statusOptionsFor = (current: TicketStatus): TicketStatus[] => [
-  current,
-  ...validTransitions[current],
+export const statusOptions: TicketStatus[] = [
+  'pending',
+  'in_progress',
+  'resolved',
 ];
 
 const priorityRank: Record<TicketPriority, number> = {
@@ -52,8 +41,7 @@ export const defaultFilters: QueueFilters = {
   createdTo: '',
 };
 
-const isActive = (status: TicketStatus) =>
-  status !== 'resolved' && status !== 'closed';
+const isActive = (ticket: Ticket) => ticket.isOpen;
 
 /** Escalated first, then priority, then oldest first. */
 export function sortQueue(tickets: Ticket[]): Ticket[] {
@@ -71,7 +59,7 @@ export function filterQueue(
 ): Ticket[] {
   return sortQueue(
     tickets.filter((ticket) => {
-      if (filters.status === 'active' && !isActive(ticket.status)) return false;
+      if (filters.status === 'active' && !isActive(ticket)) return false;
       if (
         filters.status !== 'all' &&
         filters.status !== 'active' &&

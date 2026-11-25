@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { useProfile } from '../../auth';
 import {
   CreateTicketForm,
+  confirmTicketResolution,
   listTickets,
   updateTicket,
   type Ticket,
@@ -27,6 +29,7 @@ import {
   deleteConversation,
   getConversationMessages,
   listConversations,
+  markConversationRead,
   renameConversation,
   sendChatMessage,
   setConversationArchived,
@@ -82,7 +85,18 @@ export function ChatPage() {
     null
   );
   const [assignedTickets, setAssignedTickets] = useState<Ticket[]>([]);
+  const [employeeTickets, setEmployeeTickets] = useState<Ticket[]>([]);
+  const [chatSearch, setChatSearch] = useState('');
+  const [chatFilter, setChatFilter] = useState<'all' | 'unread'>('all');
+  const [chatSort, setChatSort] = useState<'recent' | 'oldest' | 'title'>(
+    'recent'
+  );
+  const [feedbackResponses, setFeedbackResponses] = useState<
+    Record<string, 'yes' | 'no'>
+  >({});
+  const [feedbackError, setFeedbackError] = useState('');
   const [ticketUpdateError, setTicketUpdateError] = useState('');
+  const [ticketLoadError, setTicketLoadError] = useState('');
   const [updatingTicket, setUpdatingTicket] = useState(false);
   const [conversationsError, setConversationsError] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -121,6 +135,7 @@ export function ChatPage() {
   const stateRef = useRef(state);
   stateRef.current = state;
   const inFlight = useRef(false);
+  const liveRefreshInFlight = useRef(false);
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -140,15 +155,45 @@ export function ChatPage() {
     void refreshConversations();
   }, [refreshConversations]);
 
-  const loadHistory = useCallback(async (conversationId: string) => {
-    dispatch({ type: 'historyRequested', conversationId });
-    try {
-      const { messages } = await getConversationMessages(conversationId);
-      dispatch({ type: 'historyLoaded', conversationId, messages });
-    } catch (error) {
-      dispatch({ type: 'historyFailed', error: toApiError(error) });
-    }
-  }, []);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshConversations();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [refreshConversations]);
+
+  const loadHistory = useCallback(
+    async (conversationId: string) => {
+      dispatch({ type: 'historyRequested', conversationId });
+      setTicketLoadError('');
+      try {
+        const { messages } = await getConversationMessages(conversationId);
+        dispatch({ type: 'historyLoaded', conversationId, messages });
+        if (canCreateTicket) {
+          try {
+            const tickets = await listTickets();
+            setEmployeeTickets(tickets);
+          } catch (error) {
+            setTicketLoadError(toApiError(error).message);
+          }
+        }
+        try {
+          await markConversationRead(conversationId);
+          setConversations(
+            (items) =>
+              items?.map((item) =>
+                item.id === conversationId ? { ...item, isUnread: false } : item
+              ) ?? null
+          );
+        } catch (error) {
+          setConversationActionError(toApiError(error).message);
+        }
+      } catch (error) {
+        dispatch({ type: 'historyFailed', error: toApiError(error) });
+      }
+    },
+    [canCreateTicket]
+  );
 
   // Sync the URL to the loaded conversation. When the URL is only catching up
   // to a conversation this page just created, nothing is reset or refetched.
@@ -258,7 +303,7 @@ export function ChatPage() {
   const sendErrorText = state.pendingContent ?? '';
   const currentTicket = isAgent
     ? assignedTickets.find((ticket) => ticket.conversationId === routeId)
-    : undefined;
+    : employeeTickets.find((ticket) => ticket.conversationId === routeId);
 
   /**
    * Derive the agent display name for rendering 'agent' message bubbles.
@@ -276,7 +321,102 @@ export function ChatPage() {
     return 'IT agent';
   })();
   const currentTicketResolved =
-    currentTicket?.status === 'resolved' || currentTicket?.status === 'closed';
+    currentTicket?.status === 'resolved' || !currentTicket?.isOpen;
+
+  const lastEmployeeMessageIndex = state.messages.reduce(
+    (lastIndex, message, index) =>
+      message.senderType === 'user' ? index : lastIndex,
+    -1
+  );
+  const visibleConversations = useMemo(() => {
+    const filtered = (conversations ?? []).filter((conversation) => {
+      const matchesSearch = conversation.title
+        .toLocaleLowerCase()
+        .includes(chatSearch.trim().toLocaleLowerCase());
+      return matchesSearch && (chatFilter === 'all' || conversation.isUnread);
+    });
+    return filtered.sort((a, b) => {
+      if (chatSort === 'title') return a.title.localeCompare(b.title);
+      const byTime = a.updatedAt.localeCompare(b.updatedAt);
+      return chatSort === 'recent' ? -byTime : byTime;
+    });
+  }, [chatFilter, chatSearch, chatSort, conversations]);
+
+  const respondToAgentMessage = async (
+    messageId: string,
+    response: 'yes' | 'no'
+  ) => {
+    if (feedbackResponses[messageId] || !currentTicket) return;
+    setFeedbackError('');
+    if (response === 'no') {
+      setFeedbackResponses((items) => ({ ...items, [messageId]: 'no' }));
+      return;
+    }
+    setUpdatingTicket(true);
+    try {
+      const updated = await confirmTicketResolution(currentTicket.id);
+      setEmployeeTickets((tickets) =>
+        tickets.map((ticket) => (ticket.id === updated.id ? updated : ticket))
+      );
+      setFeedbackResponses((items) => ({ ...items, [messageId]: 'yes' }));
+    } catch (error) {
+      setFeedbackError(toApiError(error).message);
+    } finally {
+      setUpdatingTicket(false);
+    }
+  };
+
+  const refreshLiveMessages = useCallback(async (conversationId: string) => {
+    if (liveRefreshInFlight.current) return;
+    liveRefreshInFlight.current = true;
+    try {
+      const [{ messages }, tickets] = await Promise.all([
+        getConversationMessages(conversationId),
+        listTickets(),
+      ]);
+      if (
+        stateRef.current.conversationId !== conversationId ||
+        stateRef.current.status !== 'idle'
+      ) {
+        return;
+      }
+      const previousIds = new Set(
+        stateRef.current.messages.map((message) => message.id)
+      );
+      const receivedAgentReply = messages.some(
+        (message) =>
+          message.senderType === 'agent' && !previousIds.has(message.id)
+      );
+      dispatch({ type: 'historyLoaded', conversationId, messages });
+      setEmployeeTickets(tickets);
+      if (receivedAgentReply) {
+        await markConversationRead(conversationId);
+        setConversations(
+          (items) =>
+            items?.map((item) =>
+              item.id === conversationId ? { ...item, isUnread: false } : item
+            ) ?? null
+        );
+      }
+    } catch (error) {
+      setConversationActionError(toApiError(error).message);
+    } finally {
+      liveRefreshInFlight.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canCreateTicket || !routeId) return;
+    const timer = window.setInterval(() => {
+      if (
+        stateRef.current.conversationId === routeId &&
+        stateRef.current.status === 'idle'
+      ) {
+        void refreshLiveMessages(routeId);
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [canCreateTicket, refreshLiveMessages, routeId]);
 
   const resolveCurrentTicket = async () => {
     if (!currentTicket || updatingTicket || currentTicketResolved) return;
@@ -476,6 +616,11 @@ export function ChatPage() {
             )}
           </section>
         ) : null}
+        {canCreateTicket && ticketLoadError ? (
+          <p className="alert alert--error" role="alert">
+            Ticket information could not be loaded: {ticketLoadError}
+          </p>
+        ) : null}
 
         <h2 className="visually-hidden">Messages</h2>
         {/* aria-live is off: loading a whole conversation must not read every
@@ -509,6 +654,55 @@ export function ChatPage() {
                     : undefined
                 }
               />
+              {canCreateTicket &&
+              currentTicket &&
+              (currentTicket.isOpen || feedbackResponses[message.id]) &&
+              message.senderType === 'agent' &&
+              index > lastEmployeeMessageIndex ? (
+                <section
+                  className="resolution-feedback"
+                  aria-label="Issue resolution feedback"
+                >
+                  {feedbackResponses[message.id] ? (
+                    <p className="muted small" role="status">
+                      {feedbackResponses[message.id] === 'yes'
+                        ? 'Thanks for confirming. The ticket is resolved.'
+                        : "Thanks for letting us know. We'll keep working on it."}
+                    </p>
+                  ) : (
+                    <>
+                      <p>Has this solved your issue?</p>
+                      <div className="row">
+                        <button
+                          type="button"
+                          className="button"
+                          disabled={updatingTicket}
+                          onClick={() =>
+                            void respondToAgentMessage(message.id, 'yes')
+                          }
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          disabled={updatingTicket}
+                          onClick={() =>
+                            void respondToAgentMessage(message.id, 'no')
+                          }
+                        >
+                          No
+                        </button>
+                      </div>
+                      {feedbackError ? (
+                        <p className="alert alert--error" role="alert">
+                          {feedbackError}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </section>
+              ) : null}
             </div>
           ))}
 
@@ -575,6 +769,10 @@ export function ChatPage() {
             onCancel={closePanel}
             onCreated={(ticket) => {
               setPanel(null);
+              setEmployeeTickets((tickets) => [
+                ...tickets.filter((item) => item.id !== ticket.id),
+                ticket,
+              ]);
               setOutcome({ kind: 'ticket', ticket });
             }}
           />
@@ -786,25 +984,80 @@ export function ChatPage() {
           </p>
         ) : null}
         {conversations && conversations.length > 0 ? (
+          <div className="chat-list-controls">
+            <label className="field">
+              <span>Search chats</span>
+              <input
+                type="search"
+                value={chatSearch}
+                onChange={(event) => setChatSearch(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Filter chats</span>
+              <select
+                value={chatFilter}
+                onChange={(event) =>
+                  setChatFilter(event.target.value as 'all' | 'unread')
+                }
+              >
+                <option value="all">All chats</option>
+                <option value="unread">Unread only</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Sort chats</span>
+              <select
+                value={chatSort}
+                onChange={(event) =>
+                  setChatSort(
+                    event.target.value as 'recent' | 'oldest' | 'title'
+                  )
+                }
+              >
+                <option value="recent">Most recent</option>
+                <option value="oldest">Oldest</option>
+                <option value="title">Title</option>
+              </select>
+            </label>
+          </div>
+        ) : null}
+        {visibleConversations.length > 0 ? (
           <ul className="conversation-list">
-            {conversations.map((conversation) => (
+            {visibleConversations.map((conversation) => (
               <li key={conversation.id} className="conversation-item">
                 <div className="conversation-item__row">
                   <Link
+                    className={
+                      conversation.isUnread
+                        ? 'conversation-item__link conversation-item__link--unread'
+                        : 'conversation-item__link'
+                    }
                     to={`/chat/${conversation.id}`}
                     title={conversation.title}
                     aria-current={
                       conversation.id === routeId ? 'page' : undefined
                     }
                   >
+                    {conversation.isUnread ? (
+                      <span className="unread-indicator">
+                        <span
+                          className="unread-indicator__dot"
+                          aria-hidden="true"
+                        />
+                        <span className="visually-hidden">
+                          Unread message:{' '}
+                        </span>
+                      </span>
+                    ) : null}
                     {conversation.title}
                   </Link>
                   {isAgent &&
+                  !conversation.isUnread &&
                   !assignedTickets.some(
                     (ticket) =>
                       ticket.conversationId === conversation.id &&
-                      (ticket.status === 'resolved' ||
-                        ticket.status === 'closed')
+                      (ticket.status === 'resolved' || !ticket.isOpen)
                   ) ? null : (
                     <button
                       type="button"
@@ -823,109 +1076,88 @@ export function ChatPage() {
                     </button>
                   )}
                 </div>
-                {!isAgent && openActionsFor === conversation.id ? (
+                {openActionsFor === conversation.id ? (
                   <div
                     className="conversation-actions"
                     id={`chat-actions-${conversation.id}`}
                     aria-label={`Actions for ${conversation.title}`}
                   >
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() => {
-                        const title = window.prompt(
-                          'Chat name',
-                          conversation.title
-                        );
-                        if (!title?.trim()) {
-                          setOpenActionsFor(null);
-                          return;
+                    {conversation.isUnread ? (
+                      <button
+                        type="button"
+                        className="link-button small"
+                        onClick={() =>
+                          void performConversationAction(conversation.id, () =>
+                            markConversationRead(conversation.id)
+                          )
                         }
-                        void performConversationAction(conversation.id, () =>
-                          renameConversation(conversation.id, title.trim())
-                        );
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() =>
-                        void performConversationAction(
-                          conversation.id,
-                          () => setConversationArchived(conversation.id, true),
-                          true
-                        )
-                      }
-                    >
-                      Archive
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() => {
-                        if (
-                          !window.confirm(`Delete "${conversation.title}"?`)
-                        ) {
-                          setOpenActionsFor(null);
-                          return;
-                        }
-                        void performConversationAction(
-                          conversation.id,
-                          () => deleteConversation(conversation.id),
-                          true
-                        );
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ) : null}
-                {isAgent &&
-                openActionsFor === conversation.id &&
-                assignedTickets.some(
-                  (ticket) =>
-                    ticket.conversationId === conversation.id &&
-                    (ticket.status === 'resolved' || ticket.status === 'closed')
-                ) ? (
-                  <div
-                    className="conversation-actions"
-                    id={`chat-actions-${conversation.id}`}
-                    aria-label={`Actions for ${conversation.title}`}
-                  >
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() =>
-                        void performConversationAction(
-                          conversation.id,
-                          () => setConversationArchived(conversation.id, true),
-                          true
-                        )
-                      }
-                    >
-                      Archive
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() => {
-                        if (
-                          !window.confirm(`Delete "${conversation.title}"?`)
-                        ) {
-                          setOpenActionsFor(null);
-                          return;
-                        }
-                        void performConversationAction(
-                          conversation.id,
-                          () => deleteConversation(conversation.id),
-                          true
-                        );
-                      }}
-                    >
-                      Delete
-                    </button>
+                      >
+                        Mark as read
+                      </button>
+                    ) : null}
+                    {!isAgent ? (
+                      <button
+                        type="button"
+                        className="link-button small"
+                        onClick={() => {
+                          const title = window.prompt(
+                            'Chat name',
+                            conversation.title
+                          );
+                          if (!title?.trim()) {
+                            setOpenActionsFor(null);
+                            return;
+                          }
+                          void performConversationAction(conversation.id, () =>
+                            renameConversation(conversation.id, title.trim())
+                          );
+                        }}
+                      >
+                        Rename
+                      </button>
+                    ) : null}
+                    {!isAgent ||
+                    assignedTickets.some(
+                      (ticket) =>
+                        ticket.conversationId === conversation.id &&
+                        (ticket.status === 'resolved' || !ticket.isOpen)
+                    ) ? (
+                      <>
+                        <button
+                          type="button"
+                          className="link-button small"
+                          onClick={() =>
+                            void performConversationAction(
+                              conversation.id,
+                              () =>
+                                setConversationArchived(conversation.id, true),
+                              true
+                            )
+                          }
+                        >
+                          Archive
+                        </button>
+                        <button
+                          type="button"
+                          className="link-button small"
+                          onClick={() => {
+                            if (
+                              !window.confirm(`Delete "${conversation.title}"?`)
+                            ) {
+                              setOpenActionsFor(null);
+                              return;
+                            }
+                            void performConversationAction(
+                              conversation.id,
+                              () => deleteConversation(conversation.id),
+                              true
+                            );
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 ) : null}
               </li>
@@ -938,6 +1170,8 @@ export function ChatPage() {
               ? 'No conversations are linked to your assigned tickets.'
               : 'No past conversations yet.'}
           </p>
+        ) : conversations && visibleConversations.length === 0 ? (
+          <p className="muted small">No chats match these controls.</p>
         ) : null}
       </aside>
     </div>

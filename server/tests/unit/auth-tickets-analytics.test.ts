@@ -162,7 +162,7 @@ describe('ticket service', () => {
       employee
     );
     await service.update(ticket.id, { assigneeId: users.lee.id }, admin);
-    await service.update(ticket.id, { status: 'open' }, agent);
+    await service.update(ticket.id, { status: 'in_progress' }, agent);
     const resolved = await service.update(
       ticket.id,
       { status: 'resolved' },
@@ -227,7 +227,8 @@ describe('analytics', () => {
     description: 'x',
     category: 'general',
     priority: 'medium',
-    status: 'new',
+    status: 'pending',
+    isOpen: true,
     requesterId: 'r',
     requesterName: 'R',
     assignedTo: null,
@@ -249,6 +250,7 @@ describe('analytics', () => {
         ticket({ status: 'in_progress', assignedTo: 'a' }),
         ticket({
           status: 'resolved',
+          isOpen: false,
           resolvedAt: '2026-11-12T00:00:00.000Z',
         }),
         ticket({ createdAt: '2026-10-01T00:00:00.000Z' }),
@@ -264,7 +266,7 @@ describe('analytics', () => {
       resolvedInRange: 1,
     });
     expect(summary.byStatus).toMatchObject({
-      new: 2,
+      pending: 2,
       in_progress: 1,
       resolved: 1,
     });

@@ -41,9 +41,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_RANGE_DAYS = 30;
 export const MAX_RANGE_DAYS = 366;
 
-const isOpen = (status: TicketStatus) =>
-  status !== 'resolved' && status !== 'closed';
-
 function parseDate(value: unknown, field: string): Date | undefined {
   if (value === undefined || value === '') return undefined;
   if (typeof value !== 'string') throw badRequest(`${field} must be a date.`);
@@ -82,12 +79,9 @@ export function summarizeTickets(
   range: DateRange
 ): AnalyticsSummary {
   const byStatus: Record<TicketStatus, number> = {
-    new: 0,
-    open: 0,
-    in_progress: 0,
     pending: 0,
+    in_progress: 0,
     resolved: 0,
-    closed: 0,
   };
   const openByPriority: Record<TicketPriority, number> = {
     low: 0,
@@ -110,7 +104,7 @@ export function summarizeTickets(
   for (const ticket of tickets) {
     byStatus[ticket.status] += 1;
     if (ticket.assignedTo) assignedTickets += 1;
-    if (isOpen(ticket.status)) {
+    if (ticket.isOpen) {
       openByPriority[ticket.priority] += 1;
       if (ticket.isEscalated) openEscalated += 1;
       if (!ticket.assignedTo) openUnassigned += 1;

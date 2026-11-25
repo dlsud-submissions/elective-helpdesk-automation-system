@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createFakeSupabase,
@@ -8,10 +14,12 @@ import {
   renderApp,
   type FakeSupabase,
 } from '../helpers/fakes';
+import { setSessionPersistence } from '../../src/shared/supabase/client';
 
 let fake: FakeSupabase;
 vi.mock('../../src/shared/supabase/client', () => ({
   getSupabase: () => fake,
+  setSessionPersistence: vi.fn(),
 }));
 
 async function signIn(email: string, password: string) {
@@ -57,19 +65,79 @@ describe('sign-in and role-aware routing (S3-01)', () => {
     );
   });
 
-  it('signs an employee in, sends the bearer token, and hides staff nav', async () => {
-    const { calls } = mockApi(
-      (call) => meHandler(profiles.dana)(call) ?? emptyChat(call)
+  it('offers employee-only 30-day persistence and applies it at sign-in', async () => {
+    mockApi(
+      (call) =>
+        meHandler(profiles.dana)(call) ??
+        (call.path.startsWith('/api/analytics/summary')
+          ? {
+              status: 200,
+              body: {
+                summary: {
+                  totalTickets: 0,
+                  byStatus: { pending: 0, in_progress: 0, resolved: 0 },
+                  openByPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
+                },
+              },
+            }
+          : call.path === '/api/tickets'
+            ? { status: 200, body: { tickets: [] } }
+            : undefined)
     );
     renderApp('/login');
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Remember me for 30 days' })
+    );
+    await signIn('dana.cruz@example.test', 'Password123!');
+    expect(setSessionPersistence).toHaveBeenCalledWith('thirty-days');
+
+    cleanup();
+    fake = createFakeSupabase();
+    renderApp('/staff-login');
+    expect(
+      screen.queryByRole('checkbox', { name: 'Remember me for 30 days' })
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Staff login' })
+    ).toBeInTheDocument();
+  });
+
+  it('signs an employee in, sends the bearer token, and hides staff nav', async () => {
+    const { calls } = mockApi(
+      (call) =>
+        meHandler(profiles.dana)(call) ??
+        emptyChat(call) ??
+        (call.path.startsWith('/api/analytics/summary')
+          ? {
+              status: 200,
+              body: {
+                summary: {
+                  totalTickets: 0,
+                  byStatus: { pending: 0, in_progress: 0, resolved: 0 },
+                  openByPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
+                },
+              },
+            }
+          : call.path === '/api/tickets'
+            ? { status: 200, body: { tickets: [] } }
+            : undefined)
+    );
+    renderApp('/chat');
     await signIn('dana.cruz@example.test', 'Password123!');
 
     expect(
-      await screen.findByRole('heading', { name: 'Ask IT' })
+      await screen.findByRole('heading', { name: 'Employee dashboard' })
     ).toBeInTheDocument();
     expect(screen.getByText('Dana Cruz')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Harbor Tickets/ })
+    ).toHaveAttribute('href', '/dashboard');
+    const mainNavigation = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(mainNavigation).getAllByRole('link')[0]).toHaveTextContent(
+      'Dashboard'
+    );
 
     const me = calls.find((call) => call.path === '/api/me');
     expect(me?.headers.Authorization).toBe(
@@ -147,14 +215,7 @@ describe('sign-in and role-aware routing (S3-01)', () => {
                     to: '2026-11-20T23:59:59.999Z',
                   },
                   totalTickets: 0,
-                  byStatus: {
-                    new: 0,
-                    open: 0,
-                    in_progress: 0,
-                    pending: 0,
-                    resolved: 0,
-                    closed: 0,
-                  },
+                  byStatus: { pending: 0, in_progress: 0, resolved: 0 },
                   openByPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
                   createdInRange: 0,
                   resolvedInRange: 0,

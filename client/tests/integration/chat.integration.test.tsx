@@ -14,6 +14,7 @@ import {
 let fake: FakeSupabase;
 vi.mock('../../src/shared/supabase/client', () => ({
   getSupabase: () => fake,
+  setSessionPersistence: vi.fn(),
 }));
 
 let clock = Date.parse('2026-11-20T10:00:00Z');
@@ -74,7 +75,11 @@ function baseHandler(
     meHandler(profiles.dana)(call) ??
     (call.path === '/api/conversations'
       ? { status: 200, body: { conversations: [] } }
-      : undefined) ??
+      : call.path.endsWith('/read') && call.method === 'POST'
+        ? { status: 204 }
+        : call.path === '/api/tickets' && call.method === 'GET'
+          ? { status: 200, body: { tickets: [] } }
+          : undefined) ??
     extra(call);
 }
 
@@ -157,10 +162,195 @@ describe('employee chat (S3-02, S3-03)', () => {
       content: 'Second question',
       conversationId: 'c-1',
     });
+
     const items = within(screen.getByRole('log'))
       .getAllByRole('article')
       .map((article) => article.getAttribute('aria-label'));
     expect(items).toEqual(['You', 'Harbor', 'You', 'Harbor']);
+  });
+
+  it('searches, filters, sorts, and marks conversations as read', async () => {
+    let unread = true;
+    const items = [
+      {
+        id: 'c-vpn',
+        title: 'VPN access',
+        createdAt: '2026-11-20T10:00:00.000Z',
+        updatedAt: '2026-11-20T10:05:00.000Z',
+      },
+      {
+        id: 'c-mfa',
+        title: 'MFA reset',
+        createdAt: '2026-11-20T09:00:00.000Z',
+        updatedAt: '2026-11-20T09:05:00.000Z',
+      },
+    ];
+    const { calls } = mockApi(
+      (call) =>
+        meHandler(profiles.dana)(call) ??
+        (call.path === '/api/conversations'
+          ? {
+              status: 200,
+              body: {
+                conversations: items.map((item) => ({
+                  ...item,
+                  isUnread: item.id === 'c-vpn' && unread,
+                })),
+              },
+            }
+          : call.path === '/api/conversations/c-vpn/read'
+            ? ((unread = false), { status: 204 })
+            : undefined)
+    );
+    renderApp('/chat');
+    const search = await screen.findByRole('searchbox', {
+      name: 'Search chats',
+    });
+    expect(screen.getByText('VPN access')).toBeInTheDocument();
+    expect(screen.getByText('MFA reset')).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'vpn' } });
+    expect(screen.getByText('VPN access')).toBeInTheDocument();
+    expect(screen.queryByText('MFA reset')).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Filter chats'), {
+      target: { value: 'unread' },
+    });
+    expect(screen.getByText('VPN access')).toBeInTheDocument();
+    expect(screen.queryByText('MFA reset')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Sort chats'), {
+      target: { value: 'title' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Chat actions for VPN access' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.method === 'POST' &&
+            call.path === '/api/conversations/c-vpn/read'
+        )
+      ).toBe(true)
+    );
+    expect(
+      await screen.findByText('No chats match these controls.')
+    ).toBeInTheDocument();
+  });
+
+  it('asks employees if an agent reply resolved their linked ticket', async () => {
+    const conversationId = 'c-feedback';
+    const ticket = {
+      id: 't-feedback',
+      reference: 'TCK-2090',
+      title: 'VPN reconnect issue',
+      description: 'VPN disconnects during calls.',
+      category: 'network',
+      priority: 'medium',
+      status: 'in_progress',
+      isOpen: true,
+      requesterId: profiles.dana.id,
+      requesterName: 'Dana Cruz',
+      assignedTo: 'u-lee',
+      assigneeName: 'Lee Santos',
+      isEscalated: false,
+      conversationId,
+      escalationSummary: null,
+      resolvedAt: null,
+      createdAt: '2026-11-20T10:00:00.000Z',
+      updatedAt: '2026-11-20T10:00:00.000Z',
+    };
+    const conversation = {
+      id: conversationId,
+      title: ticket.title,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+      archivedAt: null,
+      deletedAt: null,
+      isUnread: true,
+    };
+    const agentMessage = {
+      id: 'm-agent-feedback',
+      conversationId,
+      senderType: 'agent',
+      content: 'I updated your VPN profile.',
+      outcome: null,
+      sourceRefs: [],
+      createdAt: '2026-11-20T10:01:00.000Z',
+    };
+    const secondAgentMessage = {
+      ...agentMessage,
+      id: 'm-agent-feedback-2',
+      content: 'Please try connecting again now.',
+      createdAt: '2026-11-20T10:02:00.000Z',
+    };
+    const { calls } = mockApi(
+      (call) =>
+        meHandler(profiles.dana)(call) ??
+        (call.path === '/api/conversations'
+          ? { status: 200, body: { conversations: [conversation] } }
+          : call.path === `/api/conversations/${conversationId}/messages`
+            ? {
+                status: 200,
+                body: {
+                  conversation,
+                  messages: [agentMessage, secondAgentMessage],
+                },
+              }
+            : call.path === `/api/conversations/${conversationId}/read`
+              ? { status: 204 }
+              : call.path === '/api/tickets'
+                ? { status: 200, body: { tickets: [ticket] } }
+                : call.path === `/api/tickets/${ticket.id}/confirm-resolution`
+                  ? {
+                      status: 200,
+                      body: {
+                        ticket: {
+                          ...ticket,
+                          status: 'resolved',
+                          isOpen: false,
+                          resolvedAt: '2026-11-20T10:02:00.000Z',
+                        },
+                      },
+                    }
+                  : undefined)
+    );
+    renderApp(`/chat/${conversationId}`);
+    expect(
+      await screen.findAllByText('Has this solved your issue?')
+    ).toHaveLength(2);
+    const feedbackPanels = screen.getAllByRole('region', {
+      name: 'Issue resolution feedback',
+    });
+    fireEvent.click(
+      within(feedbackPanels[0]!).getByRole('button', { name: 'No' })
+    );
+    expect(
+      within(feedbackPanels[0]!).getByText(
+        "Thanks for letting us know. We'll keep working on it."
+      )
+    ).toBeInTheDocument();
+    expect(
+      calls.some((call) => call.path.endsWith('/confirm-resolution'))
+    ).toBe(false);
+    fireEvent.click(
+      within(feedbackPanels[1]!).getByRole('button', { name: 'Yes' })
+    );
+
+    expect(
+      await screen.findByText('Thanks for confirming. The ticket is resolved.')
+    ).toBeInTheDocument();
+    expect(
+      calls.some(
+        (call) =>
+          call.method === 'POST' &&
+          call.path === `/api/tickets/${ticket.id}/confirm-resolution`
+      )
+    ).toBe(true);
+    expect(
+      screen.queryByRole('button', { name: 'No' })
+    ).not.toBeInTheDocument();
   });
 
   it('shows the uncertain state and creates a ticket only after persistence', async () => {
@@ -179,7 +369,7 @@ describe('employee chat (S3-02, S3-03)', () => {
           return {
             status: 201,
             body: {
-              ticket: { id: 't-1', reference: 'TCK-2001', status: 'new' },
+              ticket: { id: 't-1', reference: 'TCK-2001', status: 'pending' },
             },
           };
         }
@@ -212,7 +402,8 @@ describe('employee chat (S3-02, S3-03)', () => {
       description: 'VPN disconnects every 10 minutes.',
       category: 'network',
       priority: 'high',
-      status: 'open',
+      status: 'in_progress',
+      isOpen: true,
       requesterId: profiles.dana.id,
       requesterName: 'Dana Cruz',
       assignedTo: profiles.lee.id,
@@ -240,6 +431,9 @@ describe('employee chat (S3-02, S3-03)', () => {
               status: 200,
               body: { conversations: [assignedConversation] },
             }
+          : undefined) ??
+        (call.path === `/api/conversations/${conversationId}/read`
+          ? { status: 204 }
           : undefined) ??
         (call.path === '/api/tickets'
           ? { status: 200, body: { tickets: [assignedTicket] } }

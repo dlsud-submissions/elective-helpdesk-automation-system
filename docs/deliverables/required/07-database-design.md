@@ -77,6 +77,8 @@ erDiagram
         uuid id PK
         uuid requester_id FK
         text title
+        boolean unread_employee
+        boolean unread_agent
         timestamptz archived_at
         timestamptz deleted_at
         timestamptz created_at
@@ -141,19 +143,19 @@ erDiagram
 
 ### Entities
 
-| Entity                            | Example Fields                                                                                                                                                                       | Purpose                                                                                |
-| :-------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
-| `auth.users` _(Supabase managed)_ | id, email, last_sign_in_at, created_at, raw_user_meta_data                                                                                                                           | Built-in authentication table. Not edited directly by the app.                         |
-| `profiles`                        | id (PK, FK → `auth.users.id`), display_name, role, account_status, suspended_until, ban_reason, created_at                                                                           | Application profile, role, and account state linked one-to-one to `auth.users`.        |
-| `tickets`                         | id, ticket_number, requester_id, title, description, category, priority, status, assigned_to, is_escalated, conversation_id, escalation_summary, resolved_at, created_at, updated_at | Tracks support requests and their lifecycle.                                           |
-| `knowledge_articles`              | id, title, body, category, source_name, updated_at, is_published                                                                                                                     | Stores approved support procedures.                                                    |
-| `knowledge_chunks`                | id, article_id, chunk_text, embedding                                                                                                                                                | Stores text chunks and vector embeddings for retrieval (pgvector).                     |
-| `conversations`                   | id, requester_id, title, archived_at, deleted_at, created_at, updated_at                                                                                                             | Groups chat sessions and supports rename, archive, and soft deletion.                  |
-| `messages`                        | id, conversation_id, sender_type, content, created_at, source_refs                                                                                                                   | Stores chat messages and optional source references.                                   |
-| `audit_logs`                      | id, actor_id, action, resource_type, resource_id, outcome, created_at                                                                                                                | Records significant actions and workflow outcomes without storing unnecessary secrets. |
-| `automation_runs`                 | id, ticket_id, action_type, status, result_summary, created_at                                                                                                                       | Tracks safe workflow attempts and outcomes.                                            |
-| `kb_submissions`                  | id, agent_id, agent_name, ticket_id, ticket_reference, input, solution, status, admin_note, created_at, updated_at                                                                   | Agent-submitted problem → solution pairs awaiting admin review before entering the KB. |
-| `ticket_solution_drafts`          | id, ticket_id, generated_by, content, model, created_at                                                                                                                              | Stores agent solution drafts, including optional Gemini-generated drafts.              |
+| Entity                            | Example Fields                                                                                                                                                                       | Purpose                                                                                           |
+| :-------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| `auth.users` _(Supabase managed)_ | id, email, last_sign_in_at, created_at, raw_user_meta_data                                                                                                                           | Built-in authentication table. Not edited directly by the app.                                    |
+| `profiles`                        | id (PK, FK → `auth.users.id`), display_name, role, account_status, suspended_until, ban_reason, created_at                                                                           | Application profile, role, and account state linked one-to-one to `auth.users`.                   |
+| `tickets`                         | id, ticket_number, requester_id, title, description, category, priority, status, assigned_to, is_escalated, conversation_id, escalation_summary, resolved_at, created_at, updated_at | Tracks support requests and their lifecycle.                                                      |
+| `knowledge_articles`              | id, title, body, category, source_name, updated_at, is_published                                                                                                                     | Stores approved support procedures.                                                               |
+| `knowledge_chunks`                | id, article_id, chunk_text, embedding                                                                                                                                                | Stores text chunks and vector embeddings for retrieval (pgvector).                                |
+| `conversations`                   | id, requester_id, title, unread_employee, unread_agent, archived_at, deleted_at, created_at, updated_at                                                                              | Groups chats, tracks role-specific unread state, and supports rename, archive, and soft deletion. |
+| `messages`                        | id, conversation_id, sender_type, content, created_at, source_refs                                                                                                                   | Stores chat messages and optional source references.                                              |
+| `audit_logs`                      | id, actor_id, action, resource_type, resource_id, outcome, created_at                                                                                                                | Records significant actions and workflow outcomes without storing unnecessary secrets.            |
+| `automation_runs`                 | id, ticket_id, action_type, status, result_summary, created_at                                                                                                                       | Tracks safe workflow attempts and outcomes.                                                       |
+| `kb_submissions`                  | id, agent_id, agent_name, ticket_id, ticket_reference, input, solution, status, admin_note, created_at, updated_at                                                                   | Agent-submitted problem → solution pairs awaiting admin review before entering the KB.            |
+| `ticket_solution_drafts`          | id, ticket_id, generated_by, content, model, created_at                                                                                                                              | Stores agent solution drafts, including optional Gemini-generated drafts.                         |
 
 ### Relationships
 
@@ -184,15 +186,16 @@ erDiagram
 
 RLS is enabled on every application table. The Express API uses the service role and enforces authorization in code. The policies below limit what a browser session holding only the anon key and a user JWT can do directly.
 
-| Table                                | Browser (authenticated) access                                                                        |
-| :----------------------------------- | :---------------------------------------------------------------------------------------------------- |
-| `profiles`                           | Read own row; agents/admins read all. No insert/update/delete, so users cannot change their own role. |
-| `tickets`                            | Requesters read own; agents/admins read and update all; insert only as yourself with status `new`.    |
-| `conversations`, `messages`          | Owner only. Users may insert only `user` messages into their own conversations.                       |
-| `audit_logs`, `automation_runs`      | Admins read; writes are service-role only.                                                            |
-| `knowledge_articles`                 | Read published articles.                                                                              |
-| `knowledge_chunks`, `match_chunks()` | No browser access; service role only.                                                                 |
-| `ticket_solution_drafts`             | No browser access; service role only.                                                                 |
+| Table                                | Browser (authenticated) access                                                                         |
+| :----------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| `profiles`                           | Read own row; agents/admins read all. No insert/update/delete, so users cannot change their own role.  |
+| `tickets`                            | Requesters read own; agents/admins read and update all; insert only as yourself with status `pending`. |
+| `conversations`, `messages`          | Owner only. Users may insert only `user` messages into their own conversations.                        |
+| `audit_logs`, `automation_runs`      | Admins read; writes are service-role only.                                                             |
+| `knowledge_articles`                 | Read published articles.                                                                               |
+| `knowledge_chunks`, `match_chunks()` | No browser access; service role only.                                                                  |
+| `kb_submissions`                     | No browser access; service role only.                                                                  |
+| `ticket_solution_drafts`             | No browser access; service role only.                                                                  |
 
 `public.current_app_role()` (security definer) reads `profiles.role` for `auth.uid()` and is used by the policies.
 
@@ -201,7 +204,9 @@ RLS is enabled on every application table. The Express API uses the service role
 - Roles: `employee` (default), `agent`, `admin`.
 - Profile creation: the `on_auth_user_created` trigger creates a profile with role `employee` and active account status. Only server-side code or SQL promotes roles or changes account status.
 - Retention: deleting a profile is blocked while it has requested tickets (`on delete restrict`). Assignee and audit-log actor references become null, so audit history is kept. Conversations cascade with their owner.
-- `resolved_at` is set by trigger the first time a ticket reaches `resolved`/`closed`, and cleared if it is reopened.
+- Ticket work status is `pending`, `in_progress`, or `resolved`; `is_open` independently tracks whether the ticket is open or closed.
+- `resolved_at` is set by trigger the first time a ticket reaches `resolved`, and cleared if its work status changes away from resolved.
+- `unread_employee` and `unread_agent` track unread messages separately; message inserts set the other participant's flag.
 - Embedding model and dimension: configured as `gemini-embedding-001` with `EMBEDDING_DIMENSIONS=1536`; see [Gemini API Configuration](../gemini-configuration.md). The current chat answer path uses curated in-process knowledge rather than pgvector retrieval.
 
 ---

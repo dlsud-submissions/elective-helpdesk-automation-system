@@ -1,7 +1,6 @@
 import type { AuthContext, ProfileRecord } from '../auth/index.js';
 
-export type TicketStatus =
-  'new' | 'open' | 'in_progress' | 'pending' | 'resolved' | 'closed';
+export type TicketStatus = 'pending' | 'in_progress' | 'resolved';
 
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 
@@ -24,6 +23,7 @@ export type TicketRecord = {
   category: string;
   priority: TicketPriority;
   status: TicketStatus;
+  isOpen: boolean;
   requesterId: string;
   requesterName: string;
   assignedTo: string | null;
@@ -70,6 +70,7 @@ export type TicketSolutionGenerator = {
 
 export type TicketMutation = {
   status?: TicketStatus;
+  isOpen?: boolean;
   /** Profile id of an agent, or null to unassign. */
   assigneeId?: string | null;
   notes?: string;
@@ -79,6 +80,7 @@ export type TicketMutation = {
 
 export type TicketPatch = {
   status?: TicketStatus;
+  isOpen?: boolean;
   assignedTo?: string | null;
   description?: string;
 };

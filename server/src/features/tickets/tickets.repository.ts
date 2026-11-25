@@ -22,8 +22,7 @@ import type {
 export const formatTicketReference = (ticketNumber: number) =>
   `TCK-${ticketNumber}`;
 
-const isResolved = (status: TicketStatus) =>
-  status === 'resolved' || status === 'closed';
+const isResolved = (status: TicketStatus) => status === 'resolved';
 
 /** Process-local repository for tests and offline development only. */
 export class InMemoryTicketRepository implements TicketRepository {
@@ -60,7 +59,8 @@ export class InMemoryTicketRepository implements TicketRepository {
       description: input.description,
       category: input.category,
       priority: input.priority,
-      status: 'new',
+      status: 'pending',
+      isOpen: true,
       requesterId: input.requesterId,
       requesterName: this.names(input.requesterId) ?? 'Helpdesk user',
       assignedTo: null,
@@ -120,6 +120,7 @@ export class InMemoryTicketRepository implements TicketRepository {
         ? (ticket.resolvedAt ?? this.now())
         : null;
     }
+    if (patch.isOpen !== undefined) ticket.isOpen = patch.isOpen;
     if (patch.assignedTo !== undefined) {
       ticket.assignedTo = patch.assignedTo;
       ticket.assigneeName = patch.assignedTo
@@ -158,6 +159,7 @@ type TicketRow = {
   category: string;
   priority: TicketPriority;
   status: TicketStatus;
+  is_open: boolean;
   requester_id: string;
   assigned_to: string | null;
   is_escalated: boolean;
@@ -189,7 +191,7 @@ type SolutionDraftRow = {
   created_at: string;
 };
 
-const ticketColumns = `id, ticket_number, title, description, category, priority, status,
+const ticketColumns = `id, ticket_number, title, description, category, priority, status, is_open,
   requester_id, assigned_to, is_escalated, conversation_id, escalation_summary,
   resolved_at, created_at, updated_at,
   requester:profiles!tickets_requester_id_fkey(display_name),
@@ -204,6 +206,7 @@ function toTicket(row: TicketRow): TicketRecord {
     category: row.category,
     priority: row.priority,
     status: row.status,
+    isOpen: row.is_open,
     requesterId: row.requester_id,
     requesterName: row.requester?.display_name ?? 'Helpdesk user',
     assignedTo: row.assigned_to,
@@ -305,6 +308,7 @@ export class SupabaseTicketRepository implements TicketRepository {
   ): Promise<TicketRecord | null> {
     const changes: Record<string, unknown> = {};
     if (patch.status !== undefined) changes.status = patch.status;
+    if (patch.isOpen !== undefined) changes.is_open = patch.isOpen;
     if (patch.assignedTo !== undefined) changes.assigned_to = patch.assignedTo;
     if (patch.description !== undefined)
       changes.description = patch.description;
