@@ -52,6 +52,13 @@ export function getConversationMessages(
   );
 }
 
+export function markConversationRead(conversationId: string): Promise<void> {
+  return apiFetch(
+    `/api/conversations/${encodeURIComponent(conversationId)}/read`,
+    { method: 'POST' }
+  );
+}
+
 export async function listArchivedConversations(): Promise<Conversation[]> {
   return (
     await apiFetch<{ conversations: Conversation[] }>(

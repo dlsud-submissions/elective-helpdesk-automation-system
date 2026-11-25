@@ -26,10 +26,10 @@ export function validateLogin(email: string, password: string): FieldErrors {
 export function LoginPage() {
   const { state, signIn } = useAuth();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberFor30Days, setRememberFor30Days] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [authError, setAuthError] = useState<string | null>(null);
@@ -54,9 +54,7 @@ export function LoginPage() {
     );
   }
   if (state.status === 'signedIn') {
-    const target =
-      from && from !== '/login' ? from : homePathFor(state.profile.role);
-    return <Navigate to={target} replace />;
+    return <Navigate to={homePathFor(state.profile.role)} replace />;
   }
 
   const notice =
@@ -80,7 +78,12 @@ export function LoginPage() {
 
     setSubmitting(true);
     const staffOnly = location.pathname === '/staff-login';
-    const result = await signIn(email.trim(), password, staffOnly);
+    const result = await signIn(
+      email.trim(),
+      password,
+      staffOnly,
+      rememberFor30Days
+    );
     setSubmitting(false);
     if (!result.ok) setAuthError(result.message);
   }
@@ -94,7 +97,7 @@ export function LoginPage() {
         </p>
         <h1 id="login-title">
           {location.pathname === '/staff-login'
-            ? 'Agent and admin sign in'
+            ? 'Staff login'
             : 'Sign in to get IT help'}
         </h1>
 
@@ -138,6 +141,21 @@ export function LoginPage() {
               </p>
             ) : null}
           </div>
+
+          {location.pathname === '/staff-login' ? null : (
+            <div className="field">
+              <label className="login-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberFor30Days}
+                  onChange={(event) =>
+                    setRememberFor30Days(event.target.checked)
+                  }
+                />
+                Remember me for 30 days
+              </label>
+            </div>
+          )}
 
           <div className="field">
             <label htmlFor={ids.password}>Password</label>
@@ -184,7 +202,7 @@ export function LoginPage() {
         ) : (
           <p className="muted small">
             New user? <Link to="/signup">Create an account</Link> ·{' '}
-            <Link to="/staff-login">Agent/admin login</Link>
+            <Link to="/staff-login">Staff login</Link>
           </p>
         )}
       </section>

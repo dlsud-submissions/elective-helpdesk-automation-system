@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toApiError, type ApiError } from '../../../shared/api/http';
 import {
@@ -8,9 +8,14 @@ import {
   LoadingState,
 } from '../../../shared/ui/StatusViews';
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
-import { getTicket, listTickets } from '../api/tickets.api';
-import { formatRelative, priorityLabels, statusLabels } from '../model/queue';
-import type { Ticket } from '../types';
+import { getTicket, listTickets, updateTicket } from '../api/tickets.api';
+import {
+  formatRelative,
+  priorityLabels,
+  statusLabels,
+  statusOptions,
+} from '../model/queue';
+import type { Ticket, TicketStatus } from '../types';
 
 type ListState =
   | { status: 'loading' }
@@ -30,6 +35,17 @@ export function MyTicketsPage({
 }) {
   const { ticketId } = useParams();
   const [list, setList] = useState<ListState>({ status: 'loading' });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [openFilter, setOpenFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'updated' | 'created' | 'title'>(
+    'updated'
+  );
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
+  const [statusUpdateError, setStatusUpdateError] = useState<string | null>(
+    null
+  );
   useDocumentTitle(ticketId ? 'Ticket details' : 'My tickets');
 
   const refresh = useCallback(async () => {
@@ -55,6 +71,59 @@ export function MyTicketsPage({
     void refresh();
   }, [refresh]);
 
+  const visibleTickets = useMemo(() => {
+    if (list.status !== 'ready') return [];
+    const query = search.trim().toLocaleLowerCase();
+    return list.tickets
+      .filter((ticket) => {
+        const matchesQuery =
+          !query ||
+          [ticket.reference, ticket.title, ticket.requesterName].some((value) =>
+            value.toLocaleLowerCase().includes(query)
+          );
+        const matchesStatus =
+          statusFilter === 'all' || ticket.status === statusFilter;
+        const matchesOpen =
+          openFilter === 'all' ||
+          (openFilter === 'open' ? ticket.isOpen : !ticket.isOpen);
+        return matchesQuery && matchesStatus && matchesOpen;
+      })
+      .sort((a, b) => {
+        const comparison =
+          sortBy === 'title'
+            ? a.title.localeCompare(b.title)
+            : sortBy === 'created'
+              ? a.createdAt.localeCompare(b.createdAt)
+              : a.updatedAt.localeCompare(b.updatedAt);
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+  }, [list, openFilter, search, sortBy, sortDirection, statusFilter]);
+
+  async function changeStatus(ticket: Ticket, nextStatus: TicketStatus) {
+    setUpdatingTicketId(ticket.id);
+    setStatusUpdateError(null);
+    try {
+      const updated = await updateTicket(ticket.id, {
+        status: nextStatus,
+        expectedUpdatedAt: ticket.updatedAt,
+      });
+      setList((current) =>
+        current.status === 'ready'
+          ? {
+              ...current,
+              tickets: current.tickets.map((item) =>
+                item.id === updated.id ? updated : item
+              ),
+            }
+          : current
+      );
+    } catch (error) {
+      setStatusUpdateError(toApiError(error).message);
+    } finally {
+      setUpdatingTicketId(null);
+    }
+  }
+
   if (ticketId) {
     return (
       <section aria-labelledby="my-ticket-title" className="narrow">
@@ -71,9 +140,79 @@ export function MyTicketsPage({
       <h1 id="my-tickets-title">My tickets</h1>
       <p className="muted">
         {role === 'employee'
-          ? 'Tickets you created, newest first.'
-          : 'Tickets assigned to you, newest first.'}
+          ? "Tickets you've created. Search, filter, and sort below."
+          : 'Tickets assigned to you. Search, filter, and sort below.'}
       </p>
+      <div
+        className="filters my-tickets-filters"
+        role="group"
+        aria-label="Ticket search, filters, and sorting"
+      >
+        <label className="field field--inline">
+          <span>Search tickets</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Reference, title, or requester"
+          />
+        </label>
+        <label className="field field--inline">
+          <span>Work status</span>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            {statusOptions.map((option) => (
+              <option key={option} value={option}>
+                {statusLabels[option]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field field--inline">
+          <span>Ticket state</span>
+          <select
+            value={openFilter}
+            onChange={(event) => setOpenFilter(event.target.value)}
+          >
+            <option value="all">Open and closed</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+        <label className="field field--inline">
+          <span>Sort by</span>
+          <select
+            value={sortBy}
+            onChange={(event) =>
+              setSortBy(event.target.value as 'updated' | 'created' | 'title')
+            }
+          >
+            <option value="updated">Last updated</option>
+            <option value="created">Date created</option>
+            <option value="title">Title</option>
+          </select>
+        </label>
+        <label className="field field--inline">
+          <span>Sort direction</span>
+          <select
+            value={sortDirection}
+            onChange={(event) =>
+              setSortDirection(event.target.value as 'asc' | 'desc')
+            }
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+        </label>
+      </div>
+      {statusUpdateError ? (
+        <div className="alert alert--error" role="alert">
+          {statusUpdateError}
+        </div>
+      ) : null}
       {list.status === 'loading' ? (
         <LoadingState
           label={
@@ -104,53 +243,90 @@ export function MyTicketsPage({
           )}
         </EmptyState>
       ) : null}
-      {list.status === 'ready' && list.tickets.length > 0 ? (
+      {list.status === 'ready' &&
+      visibleTickets.length === 0 &&
+      list.tickets.length > 0 ? (
+        <EmptyState>
+          <p>No tickets match your search and filters.</p>
+        </EmptyState>
+      ) : null}
+      {list.status === 'ready' && visibleTickets.length > 0 ? (
         <ul
           className="ticket-list"
           aria-label={role === 'agent' ? 'Assigned tickets' : 'Your tickets'}
         >
-          {list.tickets.map((ticket) => (
+          {visibleTickets.map((ticket) => (
             <li key={ticket.id}>
-              <Link
-                to={
-                  role === 'agent'
-                    ? `/dashboard/${ticket.id}`
-                    : `/tickets/${ticket.id}`
-                }
-                className="ticket-row"
-              >
-                <span className="ticket-row__head">
-                  <strong>{ticket.reference}</strong>
-                  {ticket.isEscalated ? (
-                    <span className="badge badge--escalated">
-                      Sent to an agent
-                    </span>
-                  ) : null}
-                  <span className={`badge badge--${ticket.status}`}>
-                    {statusLabels[ticket.status]}
-                  </span>
-                </span>
-                <span className="ticket-row__title">{ticket.title}</span>
-                <span className="muted small">
-                  Updated {formatRelative(ticket.updatedAt)}
-                  {role === 'agent'
-                    ? ` · Requested by ${ticket.requesterName}`
-                    : ticket.assigneeName
-                      ? ` · Handled by ${ticket.assigneeName}`
-                      : ' · Not yet assigned'}
-                </span>
-              </Link>
-              {role === 'agent' &&
-              ticket.conversationId &&
-              ticket.status !== 'resolved' &&
-              ticket.status !== 'closed' ? (
+              <div className="ticket-row">
                 <Link
-                  to={`/chat/${ticket.conversationId}`}
-                  className="button button--secondary ticket-row__chat-link"
+                  to={
+                    role === 'agent'
+                      ? `/dashboard/${ticket.id}`
+                      : `/tickets/${ticket.id}`
+                  }
+                  className="ticket-row__content"
                 >
-                  Open in chat
+                  <span className="ticket-row__head">
+                    <strong>{ticket.reference}</strong>
+                    {ticket.isEscalated ? (
+                      <span className="badge badge--escalated">
+                        Sent to an agent
+                      </span>
+                    ) : null}
+                    <span className={`badge badge--${ticket.status}`}>
+                      {statusLabels[ticket.status]}
+                    </span>
+                  </span>
+                  <span className="ticket-row__title">{ticket.title}</span>
+                  <span className="muted small">
+                    Updated {formatRelative(ticket.updatedAt)}
+                    {role === 'agent'
+                      ? ` · Requested by ${ticket.requesterName}`
+                      : ticket.assigneeName
+                        ? ` · Handled by ${ticket.assigneeName}`
+                        : ' · Not yet assigned'}
+                  </span>
+                  <span
+                    className={`badge ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
+                  >
+                    {ticket.isOpen ? 'Open' : 'Closed'}
+                  </span>
                 </Link>
-              ) : null}
+                {role === 'agent' ? (
+                  <div className="ticket-row__actions">
+                    {ticket.conversationId &&
+                    ticket.isOpen &&
+                    ticket.status !== 'resolved' ? (
+                      <Link
+                        to={`/chat/${ticket.conversationId}`}
+                        className="button button--secondary ticket-row__chat-link"
+                      >
+                        Open in chat
+                      </Link>
+                    ) : null}
+                    <label className="field field--inline ticket-row__status">
+                      <span>Status</span>
+                      <select
+                        aria-label={`Status for ${ticket.reference}`}
+                        value={ticket.status}
+                        disabled={updatingTicketId !== null}
+                        onChange={(event) =>
+                          void changeStatus(
+                            ticket,
+                            event.target.value as TicketStatus
+                          )
+                        }
+                      >
+                        {statusOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {statusLabels[option]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
@@ -213,6 +389,11 @@ function MyTicketDetail({ ticketId }: { ticketId: string }) {
         ) : null}{' '}
         <span className={`badge badge--${ticket.status}`}>
           Status: {statusLabels[ticket.status]}
+        </span>{' '}
+        <span
+          className={`badge ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
+        >
+          {ticket.isOpen ? 'Open' : 'Closed'}
         </span>
       </p>
       <dl className="details">

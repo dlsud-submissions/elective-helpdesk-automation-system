@@ -36,6 +36,7 @@ export type Conversation = {
   title: string;
   archivedAt: string | null;
   deletedAt: string | null;
+  isUnread: boolean;
   createdAt: string;
   updatedAt: string;
 };

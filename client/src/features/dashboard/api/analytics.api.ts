@@ -1,7 +1,6 @@
 import { apiFetch } from '../../../shared/api/http';
 
-export type TicketStatusKey =
-  'new' | 'open' | 'in_progress' | 'pending' | 'resolved' | 'closed';
+export type TicketStatusKey = 'pending' | 'in_progress' | 'resolved';
 export type TicketPriorityKey = 'low' | 'medium' | 'high' | 'urgent';
 
 /** Aggregate-only metrics from GET /api/analytics/summary. */

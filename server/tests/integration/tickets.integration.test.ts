@@ -42,7 +42,8 @@ describe('ticket endpoints', () => {
     expect(response.status).toBe(201);
     expect(response.body.ticket).toMatchObject({
       title: 'Cannot sign in to VPN',
-      status: 'new',
+      status: 'pending',
+      isOpen: true,
       requesterId: users.dana.id,
       requesterName: 'Dana Cruz',
       assignedTo: null,
@@ -138,7 +139,7 @@ describe('ticket endpoints', () => {
           .get(`/api/tickets/${ticket.id}`)
           .set('Authorization', bearer('ari'))
       ).body.ticket.status
-    ).toBe('new');
+    ).toBe('pending');
   });
 
   it('scopes employee reads to their own tickets', async () => {
@@ -181,6 +182,48 @@ describe('ticket endpoints', () => {
 
     expect(response.status).toBe(403);
     expect(response.body.code).toBe('forbidden');
+  });
+
+  it('lets only the requester confirm a ticket as resolved and closed', async () => {
+    const ticket = (await createTicket('dana')).body.ticket;
+
+    const confirmed = await request(app)
+      .post(`/api/tickets/${ticket.id}/confirm-resolution`)
+      .set('Authorization', bearer('dana'))
+      .send({});
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.ticket).toMatchObject({
+      status: 'resolved',
+      isOpen: false,
+      requesterId: users.dana.id,
+    });
+
+    const repeated = await request(app)
+      .post(`/api/tickets/${ticket.id}/confirm-resolution`)
+      .set('Authorization', bearer('dana'))
+      .send({});
+    expect(repeated.status).toBe(200);
+
+    const otherEmployee = await request(app)
+      .post(`/api/tickets/${ticket.id}/confirm-resolution`)
+      .set('Authorization', bearer('sam'))
+      .send({});
+    const agent = await request(app)
+      .post(`/api/tickets/${ticket.id}/confirm-resolution`)
+      .set('Authorization', bearer('lee'))
+      .send({});
+    expect(otherEmployee.status).toBe(404);
+    expect(agent.status).toBe(403);
+
+    const detail = await request(app)
+      .get(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('ari'));
+    expect(
+      detail.body.audit.filter(
+        (entry: { action: string }) =>
+          entry.action === 'ticket.requester_confirmed_resolution'
+      )
+    ).toHaveLength(1);
   });
 
   it('lets admins assign tickets and assigned agents update status', async () => {
@@ -226,7 +269,35 @@ describe('ticket endpoints', () => {
       .send({ status: 'closed' });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toContain('not allowed');
+    expect(response.body.error).toContain('must be one of');
+  });
+
+  it('lets assigned agents close and reopen tickets independently of work status', async () => {
+    const ticket = (await createTicket('dana')).body.ticket;
+    await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
+
+    const closed = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('lee'))
+      .send({ isOpen: false });
+    expect(closed.status).toBe(200);
+    expect(closed.body.ticket).toMatchObject({
+      status: 'pending',
+      isOpen: false,
+    });
+
+    const reopened = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('lee'))
+      .send({ isOpen: true });
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.ticket).toMatchObject({
+      status: 'pending',
+      isOpen: true,
+    });
   });
 
   it('rejects assignment to an employee', async () => {
@@ -269,7 +340,7 @@ describe('ticket endpoints', () => {
       .patch(`/api/tickets/${ticket.id}`)
       .set('Authorization', bearer('ari'))
       .send({
-        status: 'open',
+        status: 'in_progress',
         assigneeId: users.lee.id,
         expectedUpdatedAt: ticket.updatedAt,
       });

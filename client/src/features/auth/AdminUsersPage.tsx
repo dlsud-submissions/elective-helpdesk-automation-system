@@ -206,8 +206,22 @@ export function AdminUsersPage() {
           <p className="muted">No users found.</p>
         ) : null}
         {users.length > 0 ? (
-          <div className="user-table-wrap">
+          <div
+            className="user-table-wrap"
+            role="region"
+            aria-label="User directory results"
+            tabIndex={0}
+          >
             <table className="metric-table user-table">
+              <colgroup>
+                <col className="user-table__name" />
+                <col className="user-table__email" />
+                <col className="user-table__role" />
+                <col className="user-table__status" />
+                <col className="user-table__created" />
+                <col className="user-table__last-sign-in" />
+                <col className="user-table__actions-column" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Name</th>
@@ -226,11 +240,23 @@ export function AdminUsersPage() {
                     <td>{user.email || '—'}</td>
                     <td>{user.role}</td>
                     <td>
-                      {user.accountStatus}
-                      {user.accountStatus === 'suspended' && user.suspendedUntil
-                        ? ` until ${new Date(user.suspendedUntil).toLocaleString()}`
-                        : ''}
-                      {user.banReason ? ` · ${user.banReason}` : ''}
+                      <div className="user-account-status">
+                        <span className={`badge badge--${user.accountStatus}`}>
+                          {user.accountStatus}
+                        </span>
+                        {user.accountStatus === 'suspended' &&
+                        user.suspendedUntil ? (
+                          <span className="user-account-status__detail">
+                            Until{' '}
+                            {new Date(user.suspendedUntil).toLocaleString()}
+                          </span>
+                        ) : null}
+                        {user.banReason ? (
+                          <span className="user-account-status__detail">
+                            {user.banReason}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       {user.createdAt
@@ -244,7 +270,7 @@ export function AdminUsersPage() {
                     </td>
                     <td>
                       {user.accountStatus === 'active' ? (
-                        <div className="archive-actions">
+                        <div className="user-table__actions">
                           <button
                             type="button"
                             className="button button--secondary"

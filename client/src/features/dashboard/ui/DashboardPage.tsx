@@ -17,12 +17,9 @@ import {
 } from '../api/analytics.api';
 
 const statusLabels: Record<TicketStatusKey, string> = {
-  new: 'New',
-  open: 'Open',
-  in_progress: 'In progress',
   pending: 'Pending',
+  in_progress: 'In progress',
   resolved: 'Resolved',
-  closed: 'Closed',
 };
 
 type LoadState =
@@ -119,12 +116,11 @@ function SummaryView({
   summary: AnalyticsSummary;
   role: 'employee' | 'agent' | 'admin';
 }) {
-  const activeTickets =
-    summary.byStatus.new +
-    summary.byStatus.open +
-    summary.byStatus.in_progress +
-    summary.byStatus.pending;
-  const resolvedTickets = summary.byStatus.resolved + summary.byStatus.closed;
+  const activeTickets = Object.values(summary.openByPriority).reduce(
+    (total, count) => total + count,
+    0
+  );
+  const resolvedTickets = summary.byStatus.resolved;
   const tiles: Array<{ label: string; value: number }> =
     role === 'admin'
       ? [
@@ -216,6 +212,11 @@ function DashboardWorklist({ role }: { role: 'employee' | 'agent' }) {
                   <strong>{ticket.reference}</strong>
                   <span className={`badge badge--${ticket.status}`}>
                     {statusLabels[ticket.status]}
+                  </span>
+                  <span
+                    className={`badge ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
+                  >
+                    {ticket.isOpen ? 'Open' : 'Closed'}
                   </span>
                 </span>
                 <span className="ticket-row__title">{ticket.title}</span>

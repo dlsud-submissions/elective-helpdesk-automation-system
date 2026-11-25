@@ -193,6 +193,11 @@ function TicketsTab({
                     <span className={`badge badge--${ticket.status}`}>
                       {statusLabels[ticket.status]}
                     </span>
+                    <span
+                      className={`badge ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
+                    >
+                      {ticket.isOpen ? 'Open' : 'Closed'}
+                    </span>
                     <span className="muted">
                       {priorityLabels[ticket.priority]}
                     </span>

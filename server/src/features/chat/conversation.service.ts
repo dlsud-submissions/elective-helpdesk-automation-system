@@ -178,6 +178,16 @@ export class ConversationService {
     return { conversation, messages };
   }
 
+  async markRead(conversationId: string, context: AuthContext): Promise<void> {
+    await this.requireOwned(conversationId, context);
+    if (context.role !== 'employee' && context.role !== 'agent') {
+      throw forbidden('You do not have access to this conversation.');
+    }
+    if (!(await this.repository.markRead(conversationId, context.role))) {
+      throw notFound('Conversation not found.');
+    }
+  }
+
   /**
    * Answers first, then persists the user/assistant pair together. A failed
    * or timed-out answer leaves no partial history, so the client can retry

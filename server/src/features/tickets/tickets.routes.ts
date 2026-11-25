@@ -56,6 +56,18 @@ export function createTicketRouter(deps: {
   );
 
   router.post(
+    '/api/tickets/:ticketId/confirm-resolution',
+    requireRole('employee'),
+    handle(async (request, response) => {
+      const ticket = await tickets.confirmResolution(
+        routeId(request.params.ticketId),
+        getAuth(request)
+      );
+      response.json({ ticket });
+    })
+  );
+
+  router.post(
     '/api/tickets/:ticketId/solution-draft/generate',
     requireRole('agent'),
     handle(async (request, response) => {
