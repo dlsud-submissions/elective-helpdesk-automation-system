@@ -84,8 +84,34 @@ export function AppShell() {
   const { pathname } = useLocation();
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortControlsOpen, setSortControlsOpen] = useState(false);
   const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('harbor-sidebar-collapsed') === 'true'
+  );
+  const [manualOrder, setManualOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`harbor-nav-order:${profile.role}`);
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((path): path is string => typeof path === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  });
   useFocusPageHeadingOnNavigate();
+
+  useEffect(() => {
+    localStorage.setItem('harbor-sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      `harbor-nav-order:${profile.role}`,
+      JSON.stringify(manualOrder)
+    );
+  }, [manualOrder, profile.role]);
 
   useEffect(() => {
     const section = sectionOf(pathname);
@@ -183,11 +209,27 @@ export function AppShell() {
       } else if (sortMode === 'created') {
         order = a.createdOrder - b.createdOrder;
       } else {
-        order = a.manualOrder - b.manualOrder;
+        const aIndex = manualOrder.indexOf(a.path);
+        const bIndex = manualOrder.indexOf(b.path);
+        order =
+          (aIndex < 0 ? a.manualOrder + links.length : aIndex) -
+          (bIndex < 0 ? b.manualOrder + links.length : bIndex);
       }
       return direction === 'asc' ? order : -order;
     });
-  }, [direction, profile.role, recentPaths, sortMode]);
+  }, [direction, manualOrder, profile.role, recentPaths, sortMode]);
+
+  const moveNavItem = (sourcePath: string, targetPath: string) => {
+    const reordered = [...items];
+    const sourceIndex = reordered.findIndex((item) => item.path === sourcePath);
+    const targetIndex = reordered.findIndex((item) => item.path === targetPath);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
+      return;
+    const [dragged] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, dragged!);
+    const paths = reordered.map((item) => item.path);
+    setManualOrder(direction === 'desc' ? paths.reverse() : paths);
+  };
 
   return (
     <div className="app-shell">
@@ -215,52 +257,136 @@ export function AppShell() {
           </button>
         </div>
       </header>
-      <div className="app-layout">
-        <aside className="app-sidebar">
-          <nav aria-label="Main">
+      <div
+        className={`app-layout${sidebarCollapsed ? ' app-layout--collapsed' : ''}`}
+      >
+        <aside
+          className={`app-sidebar${sidebarCollapsed ? ' app-sidebar--collapsed' : ''}`}
+          id="app-sidebar"
+        >
+          <div className="app-sidebar__controls">
+            <button
+              type="button"
+              className="button button--icon sidebar-toggle"
+              aria-label={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar`}
+              aria-expanded={!sidebarCollapsed}
+              aria-controls="app-sidebar"
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M9 4v16m5-11 2 3-2 3" />
+              </svg>
+            </button>
             <div className="nav-sort">
-              <label className="field field--inline">
-                <span>Sort navigation</span>
-                <select
-                  aria-label="Sort navigation"
-                  value={sortMode}
-                  onChange={(event) =>
-                    setSortMode(event.target.value as SortMode)
-                  }
-                >
-                  <option value="manual">Manual</option>
-                  <option value="alphabetical">Alphabetical</option>
-                  <option value="recent">Recent</option>
-                  <option value="created">Created</option>
-                </select>
-              </label>
               <button
                 type="button"
-                className="button button--secondary nav-sort__direction"
-                aria-label={`Sort ${direction === 'asc' ? 'ascending' : 'descending'}`}
-                onClick={() =>
-                  setDirection((current) =>
-                    current === 'asc' ? 'desc' : 'asc'
-                  )
-                }
+                className="button button--icon nav-sort__toggle"
+                aria-label={`${sortControlsOpen ? 'Hide' : 'Show'} sidebar sort options`}
+                aria-expanded={sortControlsOpen}
+                aria-controls="nav-sort-controls"
+                title={`${sortControlsOpen ? 'Hide' : 'Show'} sidebar sort options`}
+                onClick={() => setSortControlsOpen((open) => !open)}
               >
-                {direction === 'asc' ? 'ASC ↑' : 'DESC ↓'}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 6h10M4 12h7M4 18h4M18 5v14m0 0-3-3m3 3 3-3" />
+                </svg>
               </button>
+              {sortControlsOpen ? (
+                <div className="nav-sort__controls" id="nav-sort-controls">
+                  <label className="field field--inline">
+                    <span>Sort navigation</span>
+                    <select
+                      aria-label="Sort navigation"
+                      value={sortMode}
+                      onChange={(event) =>
+                        setSortMode(event.target.value as SortMode)
+                      }
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="alphabetical">Alphabetical</option>
+                      <option value="recent">Recent</option>
+                      <option value="created">Created</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="button button--secondary nav-sort__direction"
+                    aria-label={`Sort ${direction === 'asc' ? 'ascending' : 'descending'}`}
+                    onClick={() =>
+                      setDirection((current) =>
+                        current === 'asc' ? 'desc' : 'asc'
+                      )
+                    }
+                  >
+                    {direction === 'asc' ? 'ASC ↑' : 'DESC ↓'}
+                  </button>
+                </div>
+              ) : null}
             </div>
+          </div>
+          <nav aria-label="Main">
             <ul className="nav">
               {items.map((item) => (
-                <li key={item.path}>
-                  <NavLink to={item.path}>
+                <li
+                  key={item.path}
+                  draggable={sortMode === 'manual'}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', item.path);
+                  }}
+                  onDragOver={(event) => {
+                    if (sortMode === 'manual') event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (sortMode === 'manual') {
+                      moveNavItem(
+                        event.dataTransfer.getData('text/plain'),
+                        item.path
+                      );
+                    }
+                  }}
+                >
+                  <NavLink
+                    to={item.path}
+                    aria-label={item.label}
+                    title={item.label}
+                  >
                     <NavIcon name={item.icon} />
-                    <span>{item.label}</span>
+                    <span className="nav__label">{item.label}</span>
                   </NavLink>
                 </li>
               ))}
             </ul>
           </nav>
         </aside>
-        <main id="main" className="app-main" tabIndex={-1}>
-          <Outlet />
+        <main
+          id="main"
+          className={`app-main${sidebarCollapsed && sectionOf(pathname) === 'chat' ? ' app-main--chat-sidebar-collapsed' : ''}`}
+          tabIndex={-1}
+        >
+          <Outlet context={{ mainSidebarCollapsed: sidebarCollapsed }} />
         </main>
       </div>
     </div>

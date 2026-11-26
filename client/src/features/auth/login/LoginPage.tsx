@@ -142,21 +142,6 @@ export function LoginPage() {
             ) : null}
           </div>
 
-          {location.pathname === '/staff-login' ? null : (
-            <div className="field">
-              <label className="login-remember">
-                <input
-                  type="checkbox"
-                  checked={rememberFor30Days}
-                  onChange={(event) =>
-                    setRememberFor30Days(event.target.checked)
-                  }
-                />
-                Remember me for 30 days
-              </label>
-            </div>
-          )}
-
           <div className="field">
             <label htmlFor={ids.password}>Password</label>
             <div className="field__row">
@@ -186,6 +171,21 @@ export function LoginPage() {
               </p>
             ) : null}
           </div>
+
+          {location.pathname === '/staff-login' ? null : (
+            <div className="field">
+              <label className="login-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberFor30Days}
+                  onChange={(event) =>
+                    setRememberFor30Days(event.target.checked)
+                  }
+                />
+                Remember me for 30 days
+              </label>
+            </div>
+          )}
 
           <button
             type="submit"

@@ -66,7 +66,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages: [
           ...state.messages,
           action.response.userMessage,
-          action.response.message,
+          ...(action.response.message ? [action.response.message] : []),
         ],
         status: 'idle',
         pendingContent: null,

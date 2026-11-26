@@ -235,20 +235,20 @@ describe('admin queue and ticket detail (S3-06)', () => {
 
   it('lets staff close and reopen tickets without changing work status', async () => {
     const { calls } = mockApi(
-      staffHandler((call) =>
-        call.method === 'PATCH'
-          ? {
-              status: 200,
-              body: {
-                ticket: {
-                  ...tickets[1],
-                  isOpen: false,
-                  updatedAt: '2026-11-20T11:00:00Z',
-                },
-              },
-            }
-          : undefined
-      )
+      staffHandler((call) => {
+        if (call.method !== 'PATCH') return undefined;
+        const body = call.body as { isOpen: boolean };
+        return {
+          status: 200,
+          body: {
+            ticket: {
+              ...tickets[1],
+              isOpen: body.isOpen,
+              updatedAt: '2026-11-20T11:00:00Z',
+            },
+          },
+        };
+      })
     );
     renderApp('/queue/t-esc');
 
@@ -258,6 +258,14 @@ describe('admin queue and ticket detail (S3-06)', () => {
     fireEvent.click(
       within(detail).getByRole('button', { name: 'Close ticket' })
     );
+    fireEvent.change(within(detail).getByLabelText('Reason'), {
+      target: { value: 'Work completed and requester notified.' },
+    });
+    fireEvent.click(
+      within(within(detail).getByRole('dialog')).getByRole('button', {
+        name: 'Close ticket',
+      })
+    );
 
     expect(
       await within(detail).findByText('Closed ticket')
@@ -265,7 +273,27 @@ describe('admin queue and ticket detail (S3-06)', () => {
     expect(within(detail).getByLabelText('Status')).toHaveValue('pending');
     expect(calls.find((call) => call.method === 'PATCH')?.body).toMatchObject({
       isOpen: false,
+      reason: 'Work completed and requester notified.',
       expectedUpdatedAt: '2026-11-19T10:00:00.123456+00:00',
+    });
+
+    fireEvent.click(
+      within(detail).getByRole('button', { name: 'Open ticket' })
+    );
+    fireEvent.change(within(detail).getByLabelText('Reason'), {
+      target: { value: 'Requester reported that the issue returned.' },
+    });
+    fireEvent.click(
+      within(within(detail).getByRole('dialog')).getByRole('button', {
+        name: 'Reopen ticket',
+      })
+    );
+    expect(await within(detail).findByText('Open ticket')).toBeInTheDocument();
+    expect(
+      calls.filter((call) => call.method === 'PATCH')[1]?.body
+    ).toMatchObject({
+      isOpen: true,
+      reason: 'Requester reported that the issue returned.',
     });
   });
 
