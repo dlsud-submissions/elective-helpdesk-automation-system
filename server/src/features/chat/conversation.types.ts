@@ -6,7 +6,8 @@ export type ChatOutcome =
   | 'clarification'
   | 'escalation_suggested'
   | 'ticket_created'
-  | 'escalated';
+  | 'escalated'
+  | 'agent_assigned';
 
 export type SourceRef = {
   articleId: string;

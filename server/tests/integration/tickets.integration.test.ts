@@ -282,7 +282,10 @@ describe('ticket endpoints', () => {
     const closed = await request(app)
       .patch(`/api/tickets/${ticket.id}`)
       .set('Authorization', bearer('lee'))
-      .send({ isOpen: false });
+      .send({
+        isOpen: false,
+        reason: 'Work completed and requester notified.',
+      });
     expect(closed.status).toBe(200);
     expect(closed.body.ticket).toMatchObject({
       status: 'pending',
@@ -292,12 +295,28 @@ describe('ticket endpoints', () => {
     const reopened = await request(app)
       .patch(`/api/tickets/${ticket.id}`)
       .set('Authorization', bearer('lee'))
-      .send({ isOpen: true });
+      .send({ isOpen: true, reason: 'Requester reported the issue returned.' });
     expect(reopened.status).toBe(200);
     expect(reopened.body.ticket).toMatchObject({
       status: 'pending',
       isOpen: true,
     });
+  });
+
+  it('requires a reason to close or reopen a ticket', async () => {
+    const ticket = (await createTicket('dana')).body.ticket;
+    await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('ari'))
+      .send({ assigneeId: users.lee.id });
+
+    const response = await request(app)
+      .patch(`/api/tickets/${ticket.id}`)
+      .set('Authorization', bearer('lee'))
+      .send({ isOpen: false });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('reason is required');
   });
 
   it('rejects assignment to an employee', async () => {

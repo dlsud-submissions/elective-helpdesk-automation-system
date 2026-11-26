@@ -74,6 +74,7 @@ export type TicketMutation = {
   /** Profile id of an agent, or null to unassign. */
   assigneeId?: string | null;
   notes?: string;
+  reason?: string;
   /** Optimistic concurrency token: the updatedAt the caller last saw. */
   expectedUpdatedAt?: string;
 };

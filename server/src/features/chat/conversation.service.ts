@@ -26,6 +26,8 @@ export type AnswerProvider = (
 
 export type AssignedTicketConversationLookup = {
   listConversationIdsForAgent(agentId: string): Promise<string[]>;
+  hasLinkedTicket(conversationId: string): Promise<boolean>;
+  isAssigned(conversationId: string): Promise<boolean>;
   isAssignedToAgent(conversationId: string, agentId: string): Promise<boolean>;
   isResolvedAndAssignedToAgent(
     conversationId: string,
@@ -37,7 +39,7 @@ export type SendMessageResult = {
   conversationId: string;
   conversation: ConversationRecord;
   userMessage: MessageRecord;
-  message: MessageRecord;
+  message: MessageRecord | null;
   outcome: ChatOutcome;
 };
 
@@ -151,6 +153,14 @@ export class ConversationService {
     archived: unknown,
     context: AuthContext
   ): Promise<ConversationRecord> {
+    if (
+      archived === true &&
+      context.role === 'employee' &&
+      this.assignedTickets &&
+      (await this.assignedTickets.hasLinkedTicket(conversationId))
+    ) {
+      throw forbidden('Chats linked to tickets cannot be archived.');
+    }
     await this.requireEmployeeOrResolvedAgent(context, conversationId);
     if (typeof archived !== 'boolean') {
       throw badRequest('archived must be a boolean.');
@@ -219,6 +229,36 @@ export class ConversationService {
     const existing = body.conversationId
       ? await this.requireOwned(body.conversationId as string, context)
       : null;
+
+    if (
+      existing &&
+      this.assignedTickets &&
+      (await this.assignedTickets.isAssigned(existing.id))
+    ) {
+      const [userMessage] = await this.repository.addMessages([
+        {
+          conversationId: existing.id,
+          senderType: 'user',
+          content,
+          outcome: null,
+          sourceRefs: [],
+        },
+      ]);
+      if (!userMessage) {
+        throw new HttpError(
+          503,
+          'service_unavailable',
+          'The conversation could not be saved. Please try again.'
+        );
+      }
+      return {
+        conversationId: existing.id,
+        conversation: existing,
+        userMessage,
+        message: null,
+        outcome: 'agent_assigned',
+      };
+    }
 
     let answer: ChatAnswer;
     try {

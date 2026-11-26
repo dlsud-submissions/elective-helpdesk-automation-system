@@ -91,7 +91,7 @@ Response `201`:
 }
 ```
 
-`outcome` values: `answered`, `clarification`, `escalation_suggested`, `ticket_created`, `escalated`. The client treats any other value as an error. Today the answer service (S2-06) returns `answered`, or `escalation_suggested` when context is insufficient. `sourceRefs` is always empty for `escalation_suggested`.
+`outcome` values: `answered`, `clarification`, `escalation_suggested`, `ticket_created`, `escalated`, `agent_assigned`. The client treats any other value as an error. Today the answer service (S2-06) returns `answered`, or `escalation_suggested` when context is insufficient. `sourceRefs` is always empty for `escalation_suggested`. For an employee message in a conversation linked to an assigned ticket, the service persists only the user message and returns `outcome: agent_assigned` with `message: null`.
 
 The chat list supports client-side search, unread filtering, and sorting. Active employee conversations poll for new agent replies; a linked, open ticket displays a yes/no resolution prompt below new agent messages. Unread state is maintained separately for employees and agents.
 

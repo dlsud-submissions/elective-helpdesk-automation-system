@@ -287,7 +287,7 @@ export function MyTicketsPage({
                         : ' · Not yet assigned'}
                   </span>
                   <span
-                    className={`badge ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
+                    className={`badge ticket-row__open-state ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
                   >
                     {ticket.isOpen ? 'Open' : 'Closed'}
                   </span>
@@ -422,7 +422,10 @@ function MyTicketDetail({ ticketId }: { ticketId: string }) {
       </section>
       {ticket.conversationId ? (
         <p>
-          <Link to={`/chat/${ticket.conversationId}`}>
+          <Link
+            to={`/chat/${ticket.conversationId}`}
+            state={{ restoreArchivedChat: true }}
+          >
             Open the related chat
           </Link>
         </p>

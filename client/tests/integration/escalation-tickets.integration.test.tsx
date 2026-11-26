@@ -175,7 +175,16 @@ describe('my tickets (employee ticket view)', () => {
   });
 
   it('lists the employee’s tickets with text status and opens a read-only detail', async () => {
-    mockApi(
+    const archivedConversation = {
+      id: CONVERSATION_ID,
+      title: 'Printer shows offline',
+      archivedAt: '2026-11-20T10:00:00.000Z',
+      deletedAt: null,
+      isUnread: false,
+      createdAt: '2026-11-20T10:00:00.000Z',
+      updatedAt: '2026-11-20T10:00:00.000Z',
+    };
+    const { calls } = mockApi(
       employeeApi((call) => {
         if (call.path === '/api/tickets') {
           return {
@@ -201,6 +210,23 @@ describe('my tickets (employee ticket view)', () => {
             body: { ticket: ticket({ assigneeName: 'Lee Santos' }), audit: [] },
           };
         }
+        if (call.path === `/api/conversations/${CONVERSATION_ID}/messages`) {
+          return {
+            status: 200,
+            body: { conversation: archivedConversation, messages: [] },
+          };
+        }
+        if (
+          call.path === `/api/conversations/${CONVERSATION_ID}` &&
+          call.method === 'PATCH'
+        ) {
+          return {
+            status: 200,
+            body: {
+              conversation: { ...archivedConversation, archivedAt: null },
+            },
+          };
+        }
         return undefined;
       })
     );
@@ -210,6 +236,9 @@ describe('my tickets (employee ticket view)', () => {
     const rows = within(list).getAllByRole('link');
     expect(rows[0]).toHaveTextContent('TCK-2051');
     expect(rows[0]).toHaveTextContent('Sent to an agent');
+    expect(within(rows[0]!).getByText('Open')).toHaveClass(
+      'ticket-row__open-state'
+    );
     expect(rows[1]).toHaveTextContent('Resolved');
     await waitFor(() =>
       expect(document.title).toBe('My tickets · Harbor Tickets')
@@ -223,9 +252,17 @@ describe('my tickets (employee ticket view)', () => {
     await waitFor(() => expect(heading).toHaveFocus());
     expect(screen.getByText('Lee Santos')).toBeInTheDocument();
     expect(screen.queryByLabelText('Status')).not.toBeInTheDocument();
-    expect(
+    fireEvent.click(
       screen.getByRole('link', { name: 'Open the related chat' })
-    ).toHaveAttribute('href', `/chat/${CONVERSATION_ID}`);
+    );
+    await screen.findByRole('heading', { level: 1, name: 'Ask IT' });
+    expect(
+      calls.find(
+        (call) =>
+          call.path === `/api/conversations/${CONVERSATION_ID}` &&
+          call.method === 'PATCH'
+      )?.body
+    ).toEqual({ archived: false });
   });
 
   it('shows an empty state and a retryable error', async () => {

@@ -64,6 +64,62 @@ describe('accessibility regressions (S4-06)', () => {
     await waitFor(() => expect(heading).toHaveFocus());
   });
 
+  it('collapses the sidebar and supports manual drag ordering', async () => {
+    localStorage.removeItem('harbor-sidebar-collapsed');
+    localStorage.removeItem('harbor-nav-order:employee');
+    mockApi(employeeApi);
+    renderApp('/chat');
+
+    const navigation = await screen.findByRole('navigation', { name: 'Main' });
+    const sidebar = navigation.closest('aside')!;
+    const mainSidebarToggle = screen.getByRole('button', {
+      name: 'Collapse sidebar',
+    });
+    expect(
+      mainSidebarToggle.compareDocumentPosition(navigation) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.queryByLabelText('Sort navigation')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show sidebar sort options' })
+    );
+    expect(screen.getByLabelText('Sort navigation')).toHaveValue('manual');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Hide sidebar sort options' })
+    );
+    expect(screen.queryByLabelText('Sort navigation')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(sidebar).toHaveClass('app-sidebar--collapsed');
+    expect(localStorage.getItem('harbor-sidebar-collapsed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(sidebar).not.toHaveClass('app-sidebar--collapsed');
+
+    const source = screen
+      .getByRole('link', { name: 'Dashboard' })
+      .closest('li')!;
+    const target = screen
+      .getByRole('link', { name: 'My tickets' })
+      .closest('li')!;
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: vi.fn(),
+      getData: vi.fn(() => '/dashboard'),
+    };
+    fireEvent.dragStart(source, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+
+    const links = within(sidebar)
+      .getAllByRole('link')
+      .map((link) => link.textContent);
+    expect(links.slice(0, 3)).toEqual(['Chat', 'My tickets', 'Dashboard']);
+    await waitFor(() =>
+      expect(localStorage.getItem('harbor-nav-order:employee')).toContain(
+        '/dashboard'
+      )
+    );
+  });
+
   it('keeps focus in the composer while sending and announces the reply', async () => {
     const pending = deferred<{ status: number; body: unknown }>();
     mockApi(

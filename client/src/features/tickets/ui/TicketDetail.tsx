@@ -38,6 +38,8 @@ export function TicketDetail({
   const [notes, setNotes] = useState('');
   const [save, setSave] = useState<SaveState>({ status: 'idle' });
   const [openStateError, setOpenStateError] = useState<string | null>(null);
+  const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
+  const [openStateReason, setOpenStateReason] = useState('');
   const profile = useProfile();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const loadCount = useRef(0);
@@ -126,6 +128,31 @@ export function TicketDetail({
         ? "You don't have permission to update this ticket."
         : save.error.message
       : null;
+
+  async function changeOpenState(event: FormEvent) {
+    event.preventDefault();
+    if (!ticket || !openStateReason.trim() || save.status === 'saving') return;
+    setOpenStateError(null);
+    setSave({ status: 'saving' });
+    try {
+      const updated = await updateTicket(ticket.id, {
+        isOpen: !ticket.isOpen,
+        reason: openStateReason.trim(),
+        expectedUpdatedAt: ticket.updatedAt,
+      });
+      setTicket(updated);
+      onSaved(updated);
+      setSave({
+        status: 'saved',
+        message: `Ticket ${updated.isOpen ? 'reopened' : 'closed'}.`,
+      });
+      setReasonDialogOpen(false);
+      setOpenStateReason('');
+    } catch (error) {
+      setOpenStateError(toApiError(error).message);
+      setSave({ status: 'idle' });
+    }
+  }
 
   return (
     <article className="panel ticket-detail" aria-labelledby="ticket-title">
@@ -233,25 +260,10 @@ export function TicketDetail({
           type="button"
           className="button button--secondary"
           disabled={save.status === 'saving'}
-          onClick={async () => {
+          onClick={() => {
             setOpenStateError(null);
-            setSave({ status: 'saving' });
-            try {
-              const updated = await updateTicket(ticket.id, {
-                isOpen: !ticket.isOpen,
-                expectedUpdatedAt: ticket.updatedAt,
-              });
-              setTicket(updated);
-              onSaved(updated);
-              setSave({
-                status: 'saved',
-                message: `Ticket ${updated.isOpen ? 'reopened' : 'closed'}.`,
-              });
-            } catch (error) {
-              const apiError = toApiError(error);
-              setOpenStateError(apiError.message);
-              setSave({ status: 'idle' });
-            }
+            setOpenStateReason('');
+            setReasonDialogOpen(true);
           }}
         >
           {ticket.isOpen
@@ -261,9 +273,57 @@ export function TicketDetail({
               : 'Open ticket'}
         </button>
       </div>
-      {openStateError ? (
-        <div className="alert alert--error" role="alert">
-          {openStateError}
+      {reasonDialogOpen ? (
+        <div className="modal-backdrop">
+          <section
+            className="panel reason-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ticket-open-reason-title"
+          >
+            <h3 id="ticket-open-reason-title">
+              {ticket.isOpen ? 'Close ticket' : 'Reopen ticket'}
+            </h3>
+            <form onSubmit={(event) => void changeOpenState(event)}>
+              <label className="field">
+                <span>Reason</span>
+                <textarea
+                  autoFocus
+                  required
+                  maxLength={1000}
+                  rows={4}
+                  value={openStateReason}
+                  onChange={(event) => setOpenStateReason(event.target.value)}
+                />
+              </label>
+              {openStateError ? (
+                <p className="alert alert--error" role="alert">
+                  {openStateError}
+                </p>
+              ) : null}
+              <div className="row">
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={!openStateReason.trim() || save.status === 'saving'}
+                >
+                  {save.status === 'saving'
+                    ? 'Saving…'
+                    : ticket.isOpen
+                      ? 'Close ticket'
+                      : 'Reopen ticket'}
+                </button>
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  disabled={save.status === 'saving'}
+                  onClick={() => setReasonDialogOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       ) : null}
 

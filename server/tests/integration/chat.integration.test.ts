@@ -138,6 +138,14 @@ describe('chat messages and conversation history', () => {
       .set('Authorization', bearer('ari'))
       .send({ assigneeId: '22222222-2222-4222-8222-222222222222' });
 
+    const employeeReply = await request(app)
+      .post('/api/chat/messages')
+      .set('Authorization', bearer('dana'))
+      .send({
+        conversationId: assignedChat.body.conversationId,
+        content: 'I can provide more details to my agent.',
+      });
+
     const agentList = await request(app)
       .get('/api/conversations')
       .set('Authorization', bearer('lee'));
@@ -165,13 +173,25 @@ describe('chat messages and conversation history', () => {
       .send({ content: 'Starting a new chat.' });
 
     expect(assignedHistory.status).toBe(200);
-    expect(assignedHistory.body.messages.at(-1).senderType).toBe('system');
-    expect(assignedHistory.body.messages.at(-1).content).toContain(
-      ticket.body.ticket.reference
+    const ticketNotice = assignedHistory.body.messages.find(
+      (message: { senderType: string }) => message.senderType === 'system'
     );
-    expect(assignedHistory.body.messages.at(-1).content).toContain(
-      'The VPN drops frequently.'
-    );
+    expect(employeeReply.status).toBe(201);
+    expect(employeeReply.body).toMatchObject({
+      outcome: 'agent_assigned',
+      message: null,
+      userMessage: {
+        senderType: 'user',
+        content: 'I can provide more details to my agent.',
+      },
+    });
+    expect(ticketNotice.content).toContain(ticket.body.ticket.reference);
+    expect(ticketNotice.content).toContain('The VPN drops frequently.');
+    const archiveLinkedChat = await request(app)
+      .patch(`/api/conversations/${assignedChat.body.conversationId}`)
+      .set('Authorization', bearer('dana'))
+      .send({ archived: true });
+    expect(archiveLinkedChat.status).toBe(403);
     expect(unrelatedHistory.status).toBe(404);
     expect(agentSend.status).toBe(403);
     expect(adminList.status).toBe(403);

@@ -100,7 +100,7 @@ Error (API failure or Gemini 429)
 | Talk to a person    | `POST /api/escalations`                                  | `conversation_id`, `reason: user_requested_agent` | `escalation_id`, `ticket_id`, `queue`, `status`                                                                                      |
 | No, create a ticket | Navigate to W-03 with the conversation summary prefilled | n/a                                               | n/a                                                                                                                                  |
 
-`outcome` values the UI must handle: `answered`, `clarification`, `escalation_suggested`, `ticket_created`, `escalated`. Any unknown value is treated as an error.
+`outcome` values the UI must handle: `answered`, `clarification`, `escalation_suggested`, `ticket_created`, `escalated`, `agent_assigned`. For `agent_assigned`, the employee's message is saved without an AI response so the employee and assigned agent can continue in the same conversation. Any unknown value is treated as an error.
 
 The current chat answer path does not call Gemini or run a model-based action proposal. Any action request uses its separate API workflow; the UI shows a successful result only after the API confirms persistence.
 

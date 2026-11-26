@@ -26,9 +26,14 @@ export async function sendChatMessage(input: {
   if (
     !response ||
     !isChatOutcome(response.outcome) ||
-    !response.message ||
-    typeof response.message.content !== 'string' ||
-    !Array.isArray(response.message.sourceRefs)
+    !response.userMessage ||
+    typeof response.userMessage.content !== 'string' ||
+    !Array.isArray(response.userMessage.sourceRefs) ||
+    (response.outcome === 'agent_assigned'
+      ? response.message !== null
+      : !response.message ||
+        typeof response.message.content !== 'string' ||
+        !Array.isArray(response.message.sourceRefs))
   ) {
     throw new ApiError(
       'server',

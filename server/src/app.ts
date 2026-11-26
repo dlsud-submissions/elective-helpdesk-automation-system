@@ -80,6 +80,12 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
         (await deps.tickets.list({ assignedTo: agentId }))
           .map((ticket) => ticket.conversationId)
           .filter((id): id is string => id !== null),
+      hasLinkedTicket: async (conversationId) =>
+        Boolean(await deps.tickets.findByConversationId(conversationId)),
+      isAssigned: async (conversationId) =>
+        Boolean(
+          (await deps.tickets.findByConversationId(conversationId))?.assignedTo
+        ),
       isAssignedToAgent: async (conversationId, agentId) =>
         (await deps.tickets.findByConversationId(conversationId))
           ?.assignedTo === agentId,

@@ -85,9 +85,15 @@ describe('sign-in and role-aware routing (S3-01)', () => {
             : undefined)
     );
     renderApp('/login');
-    fireEvent.click(
-      await screen.findByRole('checkbox', { name: 'Remember me for 30 days' })
-    );
+    const remember = await screen.findByRole('checkbox', {
+      name: 'Remember me for 30 days',
+    });
+    const password = screen.getByLabelText('Password');
+    expect(
+      password.compareDocumentPosition(remember) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    fireEvent.click(remember);
     await signIn('dana.cruz@example.test', 'Password123!');
     expect(setSessionPersistence).toHaveBeenCalledWith('thirty-days');
 

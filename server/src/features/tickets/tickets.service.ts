@@ -403,6 +403,7 @@ export class TicketService {
       'isOpen',
       'assigneeId',
       'notes',
+      'reason',
       'expectedUpdatedAt',
     ]);
     if (Object.keys(mutation).some((field) => !allowedFields.has(field))) {
@@ -448,9 +449,22 @@ export class TicketService {
         throw badRequest('isOpen must be a boolean.');
       }
       if (mutation.isOpen !== ticket.isOpen) {
+        if (typeof mutation.reason !== 'string' || !mutation.reason.trim()) {
+          throw badRequest('A reason is required to close or reopen a ticket.');
+        }
+        if (mutation.reason.trim().length > 1000) {
+          throw badRequest('Reason must be 1000 characters or fewer.');
+        }
         patch.isOpen = mutation.isOpen;
-        changes.push(mutation.isOpen ? 'ticket reopened' : 'ticket closed');
+        changes.push(
+          `${mutation.isOpen ? 'ticket reopened' : 'ticket closed'}: ${mutation.reason.trim()}`
+        );
       }
+    }
+    if ('reason' in mutation && mutation.isOpen === undefined) {
+      throw badRequest(
+        'reason can only be used when closing or reopening a ticket.'
+      );
     }
 
     if (mutation.assigneeId !== undefined) {

@@ -44,6 +44,7 @@ export type TicketUpdate = {
   isOpen?: boolean;
   assigneeId?: string | null;
   notes?: string;
+  reason?: string;
   expectedUpdatedAt: string;
 };
 
