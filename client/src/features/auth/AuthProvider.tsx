@@ -9,7 +9,10 @@ import {
   type ReactNode,
 } from 'react';
 import { apiFetch, ApiError, configureApiAuth } from '../../shared/api/http';
-import { getSupabase } from '../../shared/supabase/client';
+import {
+  getSupabase,
+  setSessionPersistence,
+} from '../../shared/supabase/client';
 import type { AuthState, Profile, SignInResult } from './types';
 
 type AuthContextValue = {
@@ -17,7 +20,8 @@ type AuthContextValue = {
   signIn: (
     email: string,
     password: string,
-    staffOnly?: boolean
+    staffOnly?: boolean,
+    rememberFor30Days?: boolean
   ) => Promise<SignInResult>;
   signOut: () => Promise<void>;
   retry: () => void;
@@ -158,11 +162,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       email: string,
       password: string,
-      staffOnly = false
+      staffOnly = false,
+      rememberFor30Days = false
     ): Promise<SignInResult> => {
       const token = ++generation.current;
       let result;
       try {
+        setSessionPersistence(
+          staffOnly
+            ? 'persistent'
+            : rememberFor30Days
+              ? 'thirty-days'
+              : 'session'
+        );
         result = await getSupabase().auth.signInWithPassword({
           email,
           password,
@@ -187,11 +199,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const profile = await loadProfile();
       if (profile.kind === 'ok') {
-        if (staffOnly && profile.profile.role === 'employee') {
+        const roleMatchesLogin = staffOnly
+          ? profile.profile.role === 'agent' || profile.profile.role === 'admin'
+          : profile.profile.role === 'employee';
+        if (!roleMatchesLogin) {
           await clearSession('signedOut');
           return {
             ok: false,
-            message: 'This login is for agents and admins only.',
+            message: staffOnly
+              ? 'This login is for agents and admins only.'
+              : 'This login is for employees only.',
           };
         }
         await applyProfileResult(profile, token);

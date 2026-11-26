@@ -105,7 +105,7 @@ Minimum supported width is 320px. Text uses relative units so it can be zoomed t
 ## Data and API conventions
 
 - All data shown in wireframes and mockups is fictional.
-- Ticket status values proposed for the UI: `open`, `in_progress`, `resolved`, `closed`.
+- Ticket work statuses: `pending`, `in_progress`, `resolved`; the separate `is_open` flag controls open/closed state.
 - Ticket priority values: `low`, `medium`, `high` (from the [allowlisted action contract](../api-specifications/allowlisted-actions.md)).
 - Ticket categories proposed for the UI: `account_access`, `hardware`, `network`, `software`, `other`. The approved list is still open in the action contract.
 - Escalation reasons: `low_confidence`, `policy_gap`, `user_requested_agent`.

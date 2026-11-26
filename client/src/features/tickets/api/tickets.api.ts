@@ -29,6 +29,17 @@ export async function updateTicket(
   ).ticket;
 }
 
+export async function confirmTicketResolution(
+  ticketId: string
+): Promise<Ticket> {
+  return (
+    await apiFetch<{ ticket: Ticket }>(
+      `/api/tickets/${encodeURIComponent(ticketId)}/confirm-resolution`,
+      { method: 'POST', body: {} }
+    )
+  ).ticket;
+}
+
 export async function createTicket(
   input: NewTicketInput,
   idempotencyKey: string

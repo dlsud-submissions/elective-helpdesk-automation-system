@@ -103,7 +103,7 @@ on conflict (id) do nothing;
 insert into auth.identities (
   id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at
 )
-select
+select  
   u.id, u.id, u.id::text,
   jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
   'email', now(), now(), now()

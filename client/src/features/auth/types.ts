@@ -23,13 +23,10 @@ export type SignInResult = { ok: true } | { ok: false; message: string };
 
 export const isStaff = (role: AppRole) => role === 'agent' || role === 'admin';
 
-export const homePathFor = (role: AppRole) => {
-  switch (role) {
-    case 'employee':
-      return '/chat';
-    case 'agent':
-      return '/dashboard';
-    case 'admin':
-      return '/queue';
-  }
+const homePaths: Record<AppRole, string> = {
+  employee: '/dashboard',
+  agent: '/dashboard',
+  admin: '/dashboard',
 };
+
+export const homePathFor = (role: AppRole) => homePaths[role];

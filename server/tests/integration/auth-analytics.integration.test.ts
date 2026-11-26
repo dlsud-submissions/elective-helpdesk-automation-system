@@ -151,7 +151,7 @@ describe('GET /api/analytics/summary', () => {
       openUnassigned: 1,
       openEscalated: 0,
     });
-    expect(summary.byStatus.new).toBe(2);
+    expect(summary.byStatus.pending).toBe(2);
     expect(summary.openByPriority).toMatchObject({ high: 1, low: 1 });
     expect(JSON.stringify(summary)).not.toContain('Printer jam');
   });

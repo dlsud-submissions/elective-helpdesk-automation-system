@@ -13,6 +13,7 @@ import {
 let fake: FakeSupabase;
 vi.mock('../../src/shared/supabase/client', () => ({
   getSupabase: () => fake,
+  setSessionPersistence: vi.fn(),
 }));
 
 const baseTicket = {
@@ -25,6 +26,7 @@ const baseTicket = {
   conversationId: null,
   escalationSummary: null,
   resolvedAt: null,
+  isOpen: true,
 };
 
 const tickets = [
@@ -34,7 +36,7 @@ const tickets = [
     reference: 'TCK-2003',
     title: 'Second monitor',
     priority: 'low',
-    status: 'open',
+    status: 'pending',
     isEscalated: false,
     createdAt: '2026-11-18T10:00:00Z',
     updatedAt: '2026-11-18T10:00:00Z',
@@ -45,7 +47,7 @@ const tickets = [
     reference: 'TCK-2001',
     title: 'VPN drops on home network',
     priority: 'medium',
-    status: 'open',
+    status: 'pending',
     isEscalated: true,
     escalationSummary: 'Symptoms: VPN disconnects every 10 minutes.',
     createdAt: '2026-11-19T10:00:00Z',
@@ -57,7 +59,7 @@ const tickets = [
     reference: 'TCK-2002',
     title: 'Laptop will not boot',
     priority: 'high',
-    status: 'new',
+    status: 'pending',
     isEscalated: false,
     createdAt: '2026-11-20T10:00:00Z',
     updatedAt: '2026-11-20T10:00:00Z',
@@ -130,7 +132,7 @@ describe('admin queue and ticket detail (S3-06)', () => {
     await screen.findByRole('list', { name: 'Tickets' });
 
     fireEvent.change(screen.getByLabelText('Status'), {
-      target: { value: 'open' },
+      target: { value: 'pending' },
     });
     fireEvent.change(screen.getByLabelText('Assigned'), {
       target: { value: 'u-lee' },
@@ -219,16 +221,80 @@ describe('admin queue and ticket detail (S3-06)', () => {
     renderApp('/queue/t-esc');
     const detail = await screen.findByRole('region', { name: 'Ticket detail' });
     const status = await within(detail).findByLabelText('Status');
-    fireEvent.change(status, { target: { value: 'pending' } });
+    fireEvent.change(status, { target: { value: 'in_progress' } });
     fireEvent.click(within(detail).getByRole('button', { name: 'Save' }));
 
     expect(await within(detail).findByRole('alert')).toHaveTextContent(
       'updated by someone else'
     );
-    expect(within(detail).getByLabelText('Status')).toHaveValue('open');
+    expect(status).toHaveValue('pending');
     expect(
       screen.getByRole('button', { name: 'Reload ticket' })
     ).toBeInTheDocument();
+  });
+
+  it('lets staff close and reopen tickets without changing work status', async () => {
+    const { calls } = mockApi(
+      staffHandler((call) => {
+        if (call.method !== 'PATCH') return undefined;
+        const body = call.body as { isOpen: boolean };
+        return {
+          status: 200,
+          body: {
+            ticket: {
+              ...tickets[1],
+              isOpen: body.isOpen,
+              updatedAt: '2026-11-20T11:00:00Z',
+            },
+          },
+        };
+      })
+    );
+    renderApp('/queue/t-esc');
+
+    const detail = await screen.findByRole('region', { name: 'Ticket detail' });
+    const workStatus = await within(detail).findByLabelText('Status');
+    expect(workStatus).toHaveValue('pending');
+    fireEvent.click(
+      within(detail).getByRole('button', { name: 'Close ticket' })
+    );
+    fireEvent.change(within(detail).getByLabelText('Reason'), {
+      target: { value: 'Work completed and requester notified.' },
+    });
+    fireEvent.click(
+      within(within(detail).getByRole('dialog')).getByRole('button', {
+        name: 'Close ticket',
+      })
+    );
+
+    expect(
+      await within(detail).findByText('Closed ticket')
+    ).toBeInTheDocument();
+    expect(within(detail).getByLabelText('Status')).toHaveValue('pending');
+    expect(calls.find((call) => call.method === 'PATCH')?.body).toMatchObject({
+      isOpen: false,
+      reason: 'Work completed and requester notified.',
+      expectedUpdatedAt: '2026-11-19T10:00:00.123456+00:00',
+    });
+
+    fireEvent.click(
+      within(detail).getByRole('button', { name: 'Open ticket' })
+    );
+    fireEvent.change(within(detail).getByLabelText('Reason'), {
+      target: { value: 'Requester reported that the issue returned.' },
+    });
+    fireEvent.click(
+      within(within(detail).getByRole('dialog')).getByRole('button', {
+        name: 'Reopen ticket',
+      })
+    );
+    expect(await within(detail).findByText('Open ticket')).toBeInTheDocument();
+    expect(
+      calls.filter((call) => call.method === 'PATCH')[1]?.body
+    ).toMatchObject({
+      isOpen: true,
+      reason: 'Requester reported that the issue returned.',
+    });
   });
 
   it('shows the denied message when the API rejects the update', async () => {
@@ -242,7 +308,7 @@ describe('admin queue and ticket detail (S3-06)', () => {
     renderApp('/queue/t-esc');
     const detail = await screen.findByRole('region', { name: 'Ticket detail' });
     fireEvent.change(await within(detail).findByLabelText('Status'), {
-      target: { value: 'pending' },
+      target: { value: 'in_progress' },
     });
     fireEvent.click(within(detail).getByRole('button', { name: 'Save' }));
 
@@ -265,12 +331,9 @@ describe('dashboard analytics (S3-06)', () => {
     totalTickets: 7,
     assignedTickets: 4,
     byStatus: {
-      new: 2,
-      open: 2,
-      in_progress: 1,
-      pending: 0,
-      resolved: 1,
-      closed: 1,
+      pending: 2,
+      in_progress: 3,
+      resolved: 2,
     },
     openByPriority: { low: 1, medium: 2, high: 1, urgent: 1 },
     openEscalated: 3,
@@ -319,12 +382,9 @@ describe('dashboard analytics (S3-06)', () => {
       totalTickets: 1,
       assignedTickets: undefined,
       byStatus: {
-        new: 0,
-        open: 1,
+        pending: 1,
         in_progress: 0,
-        pending: 0,
         resolved: 0,
-        closed: 0,
       },
       openByPriority: { low: 0, medium: 1, high: 0, urgent: 0 },
     };
@@ -372,12 +432,9 @@ describe('dashboard analytics (S3-06)', () => {
       ...summary,
       totalTickets: 3,
       byStatus: {
-        new: 1,
-        open: 1,
+        pending: 2,
         in_progress: 0,
-        pending: 0,
         resolved: 1,
-        closed: 0,
       },
     };
     mockApi(

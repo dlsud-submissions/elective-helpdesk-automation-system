@@ -6,7 +6,8 @@ export type ChatOutcome =
   | 'clarification'
   | 'escalation_suggested'
   | 'ticket_created'
-  | 'escalated';
+  | 'escalated'
+  | 'agent_assigned';
 
 export type SourceRef = {
   articleId: string;
@@ -22,6 +23,7 @@ export type ConversationRecord = {
   title: string;
   archivedAt: string | null;
   deletedAt: string | null;
+  isUnread: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -49,6 +51,7 @@ export interface ConversationRepository {
   listArchived(requesterId: string): Promise<ConversationRecord[]>;
   rename(id: string, title: string): Promise<ConversationRecord | null>;
   archive(id: string, archived: boolean): Promise<ConversationRecord | null>;
+  markRead(id: string, reader: 'employee' | 'agent'): Promise<boolean>;
   delete(id: string): Promise<boolean>;
   /** Persists messages in order and bumps the conversation's updatedAt. */
   addMessages(messages: NewMessage[]): Promise<MessageRecord[]>;

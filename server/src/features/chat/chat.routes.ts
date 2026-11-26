@@ -100,6 +100,19 @@ export function createChatRouter(deps: {
     })
   );
 
+  router.post(
+    '/api/conversations/:conversationId/read',
+    deps.requireAuth,
+    chatReaders,
+    handle(async (request, response) => {
+      await conversations.markRead(
+        routeId(request.params.conversationId),
+        getAuth(request)
+      );
+      response.status(204).send();
+    })
+  );
+
   router.delete(
     '/api/conversations/:conversationId',
     deps.requireAuth,

@@ -40,7 +40,7 @@ AI is appropriate because a language model can interpret natural-language reques
 
 **Included:**
 
-- Employee sign-in, self-registration, profile settings, and conversational support through Harbor.
+- Role-restricted employee, agent, and admin sign-in; self-registration and profile settings for employees; an optional 30-day employee session; conversational support through Harbor.
 - Fictional, curated IT support knowledge articles and retrieval/source-reference behavior.
 - Ticket creation, requester views, agent assignment/status workflows, linked replies, and human escalation.
 - Role-based employee, agent, and administrator access, with Supabase Auth, application profiles, and database RLS policies.
@@ -118,21 +118,21 @@ For the full ERD and RLS policy table, see [docs/deliverables/required/07-databa
 
 ### Employee (`/`, `/chat`, `/archive`, `/settings`, `/tickets`)
 
-- **Chat** — conversational IT support via Harbor. Answers cite knowledge sources; uncertain responses offer ticket creation.
+- **Chat** — conversational IT support via Harbor. Answers cite knowledge sources; uncertain responses offer ticket creation. Search, unread filtering, and sorting are available for conversations. When a linked ticket is assigned, AI replies stop and the employee and assigned agent continue the conversation. Chats linked to tickets cannot be archived by employees.
 - **Archive** — review, restore, and manage archived conversations.
 - **Settings** — edit the user's display name.
-- **My Tickets** — view submitted tickets; track status.
+- **My Tickets** — search, filter, and sort submitted tickets; track work status separately from their open/closed state.
 
 ### Agent (`/chat`, `/tickets`, `/dashboard`)
 
-- **Chat** — view authorized conversations; reply to employees and submit (problem, solution) pairs to the admin review queue.
-- **My Tickets** — list tickets assigned to the agent; change status; link to open the linked chat conversation.
+- **Chat** — view conversations for assigned tickets, reply to employees, and submit (problem, solution) pairs to the admin review queue.
+- **My Tickets** — search, filter, and sort tickets assigned to the agent; change work status or open/closed state; link to the conversation. Closing or reopening a ticket requires a reason, which is recorded in the audit history.
 - **Dashboard** — role-scoped operational metrics.
 
 ### Admin (`/queue`, `/admin/users`, `/admin/kb-articles`, `/dashboard`)
 
 - **Queue** — two subtabs:
-  - **Tickets** — full ticket list with status/assignee filters; ticket detail in split panel.
+  - **Tickets** — full ticket list with status/assignee filters; ticket detail in split panel. Closing or reopening a ticket requires an audited reason.
   - **Solutions** — pending agent KB submissions; accept or deny each with optional note.
 - **Knowledge Base** — all KB articles (seeded + accepted submissions); create new pairs directly (auto-accepted).
 - **Users** — create staff accounts, manage roles, suspend/unsuspend accounts, and ban accounts.

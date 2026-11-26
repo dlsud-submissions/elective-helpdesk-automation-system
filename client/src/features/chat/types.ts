@@ -5,6 +5,7 @@ export const chatOutcomes = [
   'escalation_suggested',
   'ticket_created',
   'escalated',
+  'agent_assigned',
 ] as const;
 
 export type ChatOutcome = (typeof chatOutcomes)[number];
@@ -36,6 +37,7 @@ export type Conversation = {
   title: string;
   archivedAt: string | null;
   deletedAt: string | null;
+  isUnread: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -44,7 +46,7 @@ export type SendMessageResponse = {
   conversationId: string;
   conversation: Conversation;
   userMessage: ChatMessage;
-  message: ChatMessage;
+  message: ChatMessage | null;
   outcome: ChatOutcome;
 };
 

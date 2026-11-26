@@ -2,17 +2,26 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useReducer,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router-dom';
 import { isRetryable, toApiError } from '../../../shared/api/http';
 import { ErrorState, LoadingState } from '../../../shared/ui/StatusViews';
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { useProfile } from '../../auth';
 import {
   CreateTicketForm,
+  confirmTicketResolution,
   listTickets,
   updateTicket,
   type Ticket,
@@ -27,6 +36,7 @@ import {
   deleteConversation,
   getConversationMessages,
   listConversations,
+  markConversationRead,
   renameConversation,
   sendChatMessage,
   setConversationArchived,
@@ -41,6 +51,9 @@ const suggestions = [
   'I lost my phone and need an MFA reset',
   'What is included in laptop onboarding?',
 ];
+const CHAT_SIDEBAR_WIDTH_KEY = 'harbor-chat-sidebar-width';
+const CHAT_SIDEBAR_MIN_WIDTH = 220;
+const CHAT_SIDEBAR_MAX_WIDTH = 520;
 
 type TicketDraft = { title: string; description: string };
 
@@ -72,8 +85,12 @@ function replyAnnouncement(message: ChatMessage): string {
 export function ChatPage() {
   useDocumentTitle('Chat');
   const profile = useProfile();
+  const { mainSidebarCollapsed } = useOutletContext<{
+    mainSidebarCollapsed: boolean;
+  }>();
   const isAgent = profile.role === 'agent';
   const canCreateTicket = profile.role === 'employee';
+  const location = useLocation();
   const { conversationId: routeId } = useParams();
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -82,7 +99,35 @@ export function ChatPage() {
     null
   );
   const [assignedTickets, setAssignedTickets] = useState<Ticket[]>([]);
+  const [employeeTickets, setEmployeeTickets] = useState<Ticket[]>([]);
+  const [chatSearch, setChatSearch] = useState('');
+  const [chatFilter, setChatFilter] = useState<'all' | 'unread'>('all');
+  const [chatSort, setChatSort] = useState<'recent' | 'oldest' | 'title'>(
+    'recent'
+  );
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
+  const [chatFilterOpen, setChatFilterOpen] = useState(false);
+  const [chatSortOpen, setChatSortOpen] = useState(false);
+  const [chatSidebarWidth, setChatSidebarWidth] = useState(() => {
+    const stored = Number(localStorage.getItem(CHAT_SIDEBAR_WIDTH_KEY));
+    return Number.isFinite(stored) && stored >= CHAT_SIDEBAR_MIN_WIDTH
+      ? Math.min(stored, CHAT_SIDEBAR_MAX_WIDTH)
+      : 320;
+  });
+  const chatSidebarWidthAdjustment = mainSidebarCollapsed ? -100 : 100;
+  const effectiveChatSidebarWidth = Math.min(
+    CHAT_SIDEBAR_MAX_WIDTH,
+    Math.max(
+      CHAT_SIDEBAR_MIN_WIDTH,
+      chatSidebarWidth + chatSidebarWidthAdjustment
+    )
+  );
+  const [feedbackResponses, setFeedbackResponses] = useState<
+    Record<string, 'yes' | 'no'>
+  >({});
+  const [feedbackError, setFeedbackError] = useState('');
   const [ticketUpdateError, setTicketUpdateError] = useState('');
+  const [ticketLoadError, setTicketLoadError] = useState('');
   const [updatingTicket, setUpdatingTicket] = useState(false);
   const [conversationsError, setConversationsError] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -115,21 +160,34 @@ export function ChatPage() {
   const outcomeRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const panelKey = useRef(0);
+  const resizeStart = useRef<{ x: number; width: number } | null>(null);
+  const restoreRequestKey = useRef<string | null>(null);
+  const restoreArchivedChat = useRef(false);
+  if (
+    (location.state as { restoreArchivedChat?: boolean } | null)
+      ?.restoreArchivedChat &&
+    restoreRequestKey.current !== location.key
+  ) {
+    restoreRequestKey.current = location.key;
+    restoreArchivedChat.current = true;
+  }
 
   // Refs keep async callbacks honest about the latest state and block a
   // second request even before React re-renders (double click / Enter).
   const stateRef = useRef(state);
   stateRef.current = state;
   const inFlight = useRef(false);
+  const liveRefreshInFlight = useRef(false);
 
   const refreshConversations = useCallback(async () => {
     try {
       const [nextConversations, tickets] = await Promise.all([
         listConversations(),
-        isAgent ? listTickets() : Promise.resolve([]),
+        listTickets(),
       ]);
       setConversations(nextConversations);
       if (isAgent) setAssignedTickets(tickets);
+      else setEmployeeTickets(tickets);
       setConversationsError(false);
     } catch {
       setConversationsError(true);
@@ -137,18 +195,60 @@ export function ChatPage() {
   }, [isAgent]);
 
   useEffect(() => {
+    localStorage.setItem(CHAT_SIDEBAR_WIDTH_KEY, String(chatSidebarWidth));
+  }, [chatSidebarWidth]);
+
+  useEffect(() => {
     void refreshConversations();
   }, [refreshConversations]);
 
-  const loadHistory = useCallback(async (conversationId: string) => {
-    dispatch({ type: 'historyRequested', conversationId });
-    try {
-      const { messages } = await getConversationMessages(conversationId);
-      dispatch({ type: 'historyLoaded', conversationId, messages });
-    } catch (error) {
-      dispatch({ type: 'historyFailed', error: toApiError(error) });
-    }
-  }, []);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshConversations();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [refreshConversations]);
+
+  const loadHistory = useCallback(
+    async (conversationId: string) => {
+      dispatch({ type: 'historyRequested', conversationId });
+      setTicketLoadError('');
+      try {
+        const { conversation, messages } =
+          await getConversationMessages(conversationId);
+        if (restoreArchivedChat.current) {
+          if (conversation.archivedAt) {
+            await setConversationArchived(conversationId, false);
+            await refreshConversations();
+          }
+          restoreArchivedChat.current = false;
+        }
+        dispatch({ type: 'historyLoaded', conversationId, messages });
+        if (canCreateTicket) {
+          try {
+            const tickets = await listTickets();
+            setEmployeeTickets(tickets);
+          } catch (error) {
+            setTicketLoadError(toApiError(error).message);
+          }
+        }
+        try {
+          await markConversationRead(conversationId);
+          setConversations(
+            (items) =>
+              items?.map((item) =>
+                item.id === conversationId ? { ...item, isUnread: false } : item
+              ) ?? null
+          );
+        } catch (error) {
+          setConversationActionError(toApiError(error).message);
+        }
+      } catch (error) {
+        dispatch({ type: 'historyFailed', error: toApiError(error) });
+      }
+    },
+    [canCreateTicket, refreshConversations]
+  );
 
   // Sync the URL to the loaded conversation. When the URL is only catching up
   // to a conversation this page just created, nothing is reset or refetched.
@@ -201,7 +301,11 @@ export function ChatPage() {
           content,
         });
         dispatch({ type: 'sendSucceeded', response });
-        setAnnouncement(replyAnnouncement(response.message));
+        setAnnouncement(
+          response.message
+            ? replyAnnouncement(response.message)
+            : 'Your message was sent to the assigned agent.'
+        );
         if (response.conversationId !== routeId) {
           navigate(`/chat/${response.conversationId}`, { replace: !routeId });
         }
@@ -258,7 +362,8 @@ export function ChatPage() {
   const sendErrorText = state.pendingContent ?? '';
   const currentTicket = isAgent
     ? assignedTickets.find((ticket) => ticket.conversationId === routeId)
-    : undefined;
+    : employeeTickets.find((ticket) => ticket.conversationId === routeId);
+  const isAssignedChat = Boolean(currentTicket?.assignedTo);
 
   /**
    * Derive the agent display name for rendering 'agent' message bubbles.
@@ -276,7 +381,102 @@ export function ChatPage() {
     return 'IT agent';
   })();
   const currentTicketResolved =
-    currentTicket?.status === 'resolved' || currentTicket?.status === 'closed';
+    currentTicket?.status === 'resolved' || !currentTicket?.isOpen;
+
+  const lastEmployeeMessageIndex = state.messages.reduce(
+    (lastIndex, message, index) =>
+      message.senderType === 'user' ? index : lastIndex,
+    -1
+  );
+  const visibleConversations = useMemo(() => {
+    const filtered = (conversations ?? []).filter((conversation) => {
+      const matchesSearch = conversation.title
+        .toLocaleLowerCase()
+        .includes(chatSearch.trim().toLocaleLowerCase());
+      return matchesSearch && (chatFilter === 'all' || conversation.isUnread);
+    });
+    return filtered.sort((a, b) => {
+      if (chatSort === 'title') return a.title.localeCompare(b.title);
+      const byTime = a.updatedAt.localeCompare(b.updatedAt);
+      return chatSort === 'recent' ? -byTime : byTime;
+    });
+  }, [chatFilter, chatSearch, chatSort, conversations]);
+
+  const respondToAgentMessage = async (
+    messageId: string,
+    response: 'yes' | 'no'
+  ) => {
+    if (feedbackResponses[messageId] || !currentTicket) return;
+    setFeedbackError('');
+    if (response === 'no') {
+      setFeedbackResponses((items) => ({ ...items, [messageId]: 'no' }));
+      return;
+    }
+    setUpdatingTicket(true);
+    try {
+      const updated = await confirmTicketResolution(currentTicket.id);
+      setEmployeeTickets((tickets) =>
+        tickets.map((ticket) => (ticket.id === updated.id ? updated : ticket))
+      );
+      setFeedbackResponses((items) => ({ ...items, [messageId]: 'yes' }));
+    } catch (error) {
+      setFeedbackError(toApiError(error).message);
+    } finally {
+      setUpdatingTicket(false);
+    }
+  };
+
+  const refreshLiveMessages = useCallback(async (conversationId: string) => {
+    if (liveRefreshInFlight.current) return;
+    liveRefreshInFlight.current = true;
+    try {
+      const [{ messages }, tickets] = await Promise.all([
+        getConversationMessages(conversationId),
+        listTickets(),
+      ]);
+      if (
+        stateRef.current.conversationId !== conversationId ||
+        stateRef.current.status !== 'idle'
+      ) {
+        return;
+      }
+      const previousIds = new Set(
+        stateRef.current.messages.map((message) => message.id)
+      );
+      const receivedAgentReply = messages.some(
+        (message) =>
+          message.senderType === 'agent' && !previousIds.has(message.id)
+      );
+      dispatch({ type: 'historyLoaded', conversationId, messages });
+      setEmployeeTickets(tickets);
+      if (receivedAgentReply) {
+        await markConversationRead(conversationId);
+        setConversations(
+          (items) =>
+            items?.map((item) =>
+              item.id === conversationId ? { ...item, isUnread: false } : item
+            ) ?? null
+        );
+      }
+    } catch (error) {
+      setConversationActionError(toApiError(error).message);
+    } finally {
+      liveRefreshInFlight.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canCreateTicket || !routeId) return;
+    const timer = window.setInterval(() => {
+      if (
+        stateRef.current.conversationId === routeId &&
+        stateRef.current.status === 'idle'
+      ) {
+        void refreshLiveMessages(routeId);
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [canCreateTicket, refreshLiveMessages, routeId]);
 
   const resolveCurrentTicket = async () => {
     if (!currentTicket || updatingTicket || currentTicketResolved) return;
@@ -376,7 +576,14 @@ export function ChatPage() {
   };
 
   return (
-    <div className="chat-layout">
+    <div
+      className={`chat-layout chat-layout--main-sidebar-${mainSidebarCollapsed ? 'collapsed' : 'open'}`}
+      style={
+        {
+          '--chat-sidebar-width': `${effectiveChatSidebarWidth}px`,
+        } as CSSProperties
+      }
+    >
       <section className="chat-main" aria-labelledby="chat-title">
         <h1
           id="chat-title"
@@ -421,7 +628,10 @@ export function ChatPage() {
             </p>
           </div>
         ) : null}
-        {empty && state.status !== 'historyError' && !isAgent ? (
+        {empty &&
+        state.status !== 'historyError' &&
+        !isAgent &&
+        !isAssignedChat ? (
           <div className="chat-empty">
             <h2>How can we help?</h2>
             <p className="muted">
@@ -476,6 +686,11 @@ export function ChatPage() {
             )}
           </section>
         ) : null}
+        {canCreateTicket && ticketLoadError ? (
+          <p className="alert alert--error" role="alert">
+            Ticket information could not be loaded: {ticketLoadError}
+          </p>
+        ) : null}
 
         <h2 className="visually-hidden">Messages</h2>
         {/* aria-live is off: loading a whole conversation must not read every
@@ -509,6 +724,55 @@ export function ChatPage() {
                     : undefined
                 }
               />
+              {canCreateTicket &&
+              currentTicket &&
+              (currentTicket.isOpen || feedbackResponses[message.id]) &&
+              message.senderType === 'agent' &&
+              index > lastEmployeeMessageIndex ? (
+                <section
+                  className="resolution-feedback"
+                  aria-label="Issue resolution feedback"
+                >
+                  {feedbackResponses[message.id] ? (
+                    <p className="muted small" role="status">
+                      {feedbackResponses[message.id] === 'yes'
+                        ? 'Thanks for confirming. The ticket is resolved.'
+                        : "Thanks for letting us know. We'll keep working on it."}
+                    </p>
+                  ) : (
+                    <>
+                      <p>Has this solved your issue?</p>
+                      <div className="row">
+                        <button
+                          type="button"
+                          className="button"
+                          disabled={updatingTicket}
+                          onClick={() =>
+                            void respondToAgentMessage(message.id, 'yes')
+                          }
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          disabled={updatingTicket}
+                          onClick={() =>
+                            void respondToAgentMessage(message.id, 'no')
+                          }
+                        >
+                          No
+                        </button>
+                      </div>
+                      {feedbackError ? (
+                        <p className="alert alert--error" role="alert">
+                          {feedbackError}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </section>
+              ) : null}
             </div>
           ))}
 
@@ -575,6 +839,10 @@ export function ChatPage() {
             onCancel={closePanel}
             onCreated={(ticket) => {
               setPanel(null);
+              setEmployeeTickets((tickets) => [
+                ...tickets.filter((item) => item.id !== ticket.id),
+                ticket,
+              ]);
               setOutcome({ kind: 'ticket', ticket });
             }}
           />
@@ -735,14 +1003,22 @@ export function ChatPage() {
         ) : null}
 
         {isAgent ? null : (
-          <Composer
-            value={draft}
-            onChange={setDraft}
-            onSend={(content) => void send(content)}
-            sending={sending}
-            disabled={state.status === 'loadingHistory'}
-            inputRef={composerRef}
-          />
+          <>
+            {isAssignedChat ? (
+              <p className="chat-assigned-notice" role="status">
+                AI responses are disabled for this ticket. Your messages go to{' '}
+                {currentTicket?.assigneeName ?? 'the assigned agent'}.
+              </p>
+            ) : null}
+            <Composer
+              value={draft}
+              onChange={setDraft}
+              onSend={(content) => void send(content)}
+              sending={sending}
+              disabled={state.status === 'loadingHistory'}
+              inputRef={composerRef}
+            />
+          </>
         )}
       </section>
 
@@ -760,186 +1036,358 @@ export function ChatPage() {
           }
         }}
       >
-        {isAgent ? null : (
-          <Link to="/chat" className="button button--block">
-            New chat
-          </Link>
-        )}
-        {conversationActionError ? (
-          <p className="alert alert--error" role="alert">
-            {conversationActionError}
-          </p>
-        ) : null}
-        {conversations === null && !conversationsError ? (
-          <p className="muted small">Loading past conversations…</p>
-        ) : null}
-        {conversationsError ? (
-          <p className="muted small" role="status">
-            Could not load past conversations.{' '}
-            <button
-              type="button"
-              className="link-button"
-              onClick={refreshConversations}
-            >
-              Retry
-            </button>
-          </p>
-        ) : null}
-        {conversations && conversations.length > 0 ? (
-          <ul className="conversation-list">
-            {conversations.map((conversation) => (
-              <li key={conversation.id} className="conversation-item">
-                <div className="conversation-item__row">
-                  <Link
-                    to={`/chat/${conversation.id}`}
-                    title={conversation.title}
-                    aria-current={
-                      conversation.id === routeId ? 'page' : undefined
+        <div className="chat-sidebar__content">
+          {isAgent ? null : (
+            <Link to="/chat" className="button button--block">
+              New chat
+            </Link>
+          )}
+          {conversationActionError ? (
+            <p className="alert alert--error" role="alert">
+              {conversationActionError}
+            </p>
+          ) : null}
+          {conversations === null && !conversationsError ? (
+            <p className="muted small">Loading past conversations…</p>
+          ) : null}
+          {conversationsError ? (
+            <p className="muted small" role="status">
+              Could not load past conversations.{' '}
+              <button
+                type="button"
+                className="link-button"
+                onClick={refreshConversations}
+              >
+                Retry
+              </button>
+            </p>
+          ) : null}
+          {conversations && conversations.length > 0 ? (
+            <div className="chat-list-controls">
+              <div
+                className="chat-list-tools"
+                role="group"
+                aria-label="Chat list controls"
+              >
+                <button
+                  type="button"
+                  className="button button--icon"
+                  aria-label={`${chatSearchOpen ? 'Hide' : 'Show'} chat search`}
+                  aria-expanded={chatSearchOpen}
+                  aria-controls="chat-search-control"
+                  onClick={() => setChatSearchOpen((open) => !open)}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="10.8" cy="10.8" r="6.3" />
+                    <path d="m16 16 4.5 4.5" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="button button--icon"
+                  aria-label={`${chatFilterOpen ? 'Hide' : 'Show'} chat filter`}
+                  aria-expanded={chatFilterOpen}
+                  aria-controls="chat-filter-control"
+                  onClick={() => setChatFilterOpen((open) => !open)}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 5h16l-6.5 7.5v5L10.5 19v-6.5z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="button button--icon"
+                  aria-label={`${chatSortOpen ? 'Hide' : 'Show'} chat sort`}
+                  aria-expanded={chatSortOpen}
+                  aria-controls="chat-sort-control"
+                  onClick={() => setChatSortOpen((open) => !open)}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 6h10M4 12h7M4 18h4M18 5v14m0 0-3-3m3 3 3-3" />
+                  </svg>
+                </button>
+              </div>
+              {chatSearchOpen ? (
+                <label className="field" id="chat-search-control">
+                  <span>Search chats</span>
+                  <input
+                    type="search"
+                    value={chatSearch}
+                    onChange={(event) => setChatSearch(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              {chatFilterOpen ? (
+                <label className="field" id="chat-filter-control">
+                  <span>Filter chats</span>
+                  <select
+                    value={chatFilter}
+                    onChange={(event) =>
+                      setChatFilter(event.target.value as 'all' | 'unread')
                     }
                   >
-                    {conversation.title}
-                  </Link>
-                  {isAgent &&
-                  !assignedTickets.some(
-                    (ticket) =>
-                      ticket.conversationId === conversation.id &&
-                      (ticket.status === 'resolved' ||
-                        ticket.status === 'closed')
-                  ) ? null : (
-                    <button
-                      type="button"
-                      id={`chat-actions-trigger-${conversation.id}`}
-                      className="conversation-actions__trigger"
-                      aria-label={`Chat actions for ${conversation.title}`}
-                      aria-expanded={openActionsFor === conversation.id}
-                      aria-controls={`chat-actions-${conversation.id}`}
-                      onClick={() =>
-                        setOpenActionsFor((current) =>
-                          current === conversation.id ? null : conversation.id
-                        )
-                      }
-                    >
-                      <span aria-hidden="true">⋯</span>
-                    </button>
-                  )}
-                </div>
-                {!isAgent && openActionsFor === conversation.id ? (
-                  <div
-                    className="conversation-actions"
-                    id={`chat-actions-${conversation.id}`}
-                    aria-label={`Actions for ${conversation.title}`}
+                    <option value="all">All chats</option>
+                    <option value="unread">Unread only</option>
+                  </select>
+                </label>
+              ) : null}
+              {chatSortOpen ? (
+                <label className="field" id="chat-sort-control">
+                  <span>Sort chats</span>
+                  <select
+                    value={chatSort}
+                    onChange={(event) =>
+                      setChatSort(
+                        event.target.value as 'recent' | 'oldest' | 'title'
+                      )
+                    }
                   >
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() => {
-                        const title = window.prompt(
-                          'Chat name',
-                          conversation.title
-                        );
-                        if (!title?.trim()) {
-                          setOpenActionsFor(null);
-                          return;
-                        }
-                        void performConversationAction(conversation.id, () =>
-                          renameConversation(conversation.id, title.trim())
-                        );
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() =>
-                        void performConversationAction(
-                          conversation.id,
-                          () => setConversationArchived(conversation.id, true),
-                          true
-                        )
+                    <option value="recent">Most recent</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="title">Title</option>
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+          {visibleConversations.length > 0 ? (
+            <ul className="conversation-list">
+              {visibleConversations.map((conversation) => (
+                <li key={conversation.id} className="conversation-item">
+                  <div className="conversation-item__row">
+                    <Link
+                      className={
+                        conversation.isUnread
+                          ? 'conversation-item__link conversation-item__link--unread'
+                          : 'conversation-item__link'
+                      }
+                      to={`/chat/${conversation.id}`}
+                      title={conversation.title}
+                      aria-current={
+                        conversation.id === routeId ? 'page' : undefined
                       }
                     >
-                      Archive
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() => {
-                        if (
-                          !window.confirm(`Delete "${conversation.title}"?`)
-                        ) {
-                          setOpenActionsFor(null);
-                          return;
+                      {conversation.isUnread ? (
+                        <span className="unread-indicator">
+                          <span
+                            className="unread-indicator__dot"
+                            aria-hidden="true"
+                          />
+                          <span className="visually-hidden">
+                            Unread message:{' '}
+                          </span>
+                        </span>
+                      ) : null}
+                      {conversation.title}
+                    </Link>
+                    {isAgent &&
+                    !conversation.isUnread &&
+                    !assignedTickets.some(
+                      (ticket) =>
+                        ticket.conversationId === conversation.id &&
+                        (ticket.status === 'resolved' || !ticket.isOpen)
+                    ) ? null : (
+                      <button
+                        type="button"
+                        id={`chat-actions-trigger-${conversation.id}`}
+                        className="conversation-actions__trigger"
+                        aria-label={`Chat actions for ${conversation.title}`}
+                        aria-expanded={openActionsFor === conversation.id}
+                        aria-controls={`chat-actions-${conversation.id}`}
+                        onClick={() =>
+                          setOpenActionsFor((current) =>
+                            current === conversation.id ? null : conversation.id
+                          )
                         }
-                        void performConversationAction(
-                          conversation.id,
-                          () => deleteConversation(conversation.id),
-                          true
-                        );
-                      }}
-                    >
-                      Delete
-                    </button>
+                      >
+                        <span aria-hidden="true">⋯</span>
+                      </button>
+                    )}
                   </div>
-                ) : null}
-                {isAgent &&
-                openActionsFor === conversation.id &&
-                assignedTickets.some(
-                  (ticket) =>
-                    ticket.conversationId === conversation.id &&
-                    (ticket.status === 'resolved' || ticket.status === 'closed')
-                ) ? (
-                  <div
-                    className="conversation-actions"
-                    id={`chat-actions-${conversation.id}`}
-                    aria-label={`Actions for ${conversation.title}`}
-                  >
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() =>
-                        void performConversationAction(
-                          conversation.id,
-                          () => setConversationArchived(conversation.id, true),
-                          true
-                        )
-                      }
+                  {openActionsFor === conversation.id ? (
+                    <div
+                      className="conversation-actions"
+                      id={`chat-actions-${conversation.id}`}
+                      aria-label={`Actions for ${conversation.title}`}
                     >
-                      Archive
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button small"
-                      onClick={() => {
-                        if (
-                          !window.confirm(`Delete "${conversation.title}"?`)
-                        ) {
-                          setOpenActionsFor(null);
-                          return;
-                        }
-                        void performConversationAction(
-                          conversation.id,
-                          () => deleteConversation(conversation.id),
-                          true
-                        );
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {conversations && conversations.length === 0 ? (
-          <p className="muted small">
-            {isAgent
-              ? 'No conversations are linked to your assigned tickets.'
-              : 'No past conversations yet.'}
-          </p>
-        ) : null}
+                      {conversation.isUnread ? (
+                        <button
+                          type="button"
+                          className="link-button small"
+                          onClick={() =>
+                            void performConversationAction(
+                              conversation.id,
+                              () => markConversationRead(conversation.id)
+                            )
+                          }
+                        >
+                          Mark as read
+                        </button>
+                      ) : null}
+                      {!isAgent ? (
+                        <button
+                          type="button"
+                          className="link-button small"
+                          onClick={() => {
+                            const title = window.prompt(
+                              'Chat name',
+                              conversation.title
+                            );
+                            if (!title?.trim()) {
+                              setOpenActionsFor(null);
+                              return;
+                            }
+                            void performConversationAction(
+                              conversation.id,
+                              () =>
+                                renameConversation(
+                                  conversation.id,
+                                  title.trim()
+                                )
+                            );
+                          }}
+                        >
+                          Rename
+                        </button>
+                      ) : null}
+                      {(!isAgent &&
+                        !employeeTickets.some(
+                          (ticket) => ticket.conversationId === conversation.id
+                        )) ||
+                      (isAgent &&
+                        assignedTickets.some(
+                          (ticket) =>
+                            ticket.conversationId === conversation.id &&
+                            (ticket.status === 'resolved' || !ticket.isOpen)
+                        )) ? (
+                        <>
+                          <button
+                            type="button"
+                            className="link-button small"
+                            onClick={() =>
+                              void performConversationAction(
+                                conversation.id,
+                                () =>
+                                  setConversationArchived(
+                                    conversation.id,
+                                    true
+                                  ),
+                                true
+                              )
+                            }
+                          >
+                            Archive
+                          </button>
+                          <button
+                            type="button"
+                            className="link-button small"
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  `Delete "${conversation.title}"?`
+                                )
+                              ) {
+                                setOpenActionsFor(null);
+                                return;
+                              }
+                              void performConversationAction(
+                                conversation.id,
+                                () => deleteConversation(conversation.id),
+                                true
+                              );
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {conversations && conversations.length === 0 ? (
+            <p className="muted small">
+              {isAgent
+                ? 'No conversations are linked to your assigned tickets.'
+                : 'No past conversations yet.'}
+            </p>
+          ) : conversations && visibleConversations.length === 0 ? (
+            <p className="muted small">No chats match these controls.</p>
+          ) : null}
+        </div>
       </aside>
+      <div
+        className="chat-sidebar-resizer"
+        role="separator"
+        aria-label="Resize chat sidebar"
+        aria-orientation="vertical"
+        aria-valuemin={CHAT_SIDEBAR_MIN_WIDTH}
+        aria-valuemax={CHAT_SIDEBAR_MAX_WIDTH}
+        aria-valuenow={effectiveChatSidebarWidth}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          resizeStart.current = { x: event.clientX, width: chatSidebarWidth };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (!resizeStart.current) return;
+          const nextWidth =
+            resizeStart.current.width + event.clientX - resizeStart.current.x;
+          setChatSidebarWidth(
+            Math.min(
+              CHAT_SIDEBAR_MAX_WIDTH,
+              Math.max(CHAT_SIDEBAR_MIN_WIDTH, nextWidth)
+            ) - chatSidebarWidthAdjustment
+          );
+        }}
+        onPointerUp={() => {
+          resizeStart.current = null;
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          setChatSidebarWidth((width) =>
+            Math.min(
+              CHAT_SIDEBAR_MAX_WIDTH,
+              Math.max(
+                CHAT_SIDEBAR_MIN_WIDTH,
+                width + (event.key === 'ArrowRight' ? 24 : -24)
+              )
+            )
+          );
+        }}
+      />
     </div>
   );
 }

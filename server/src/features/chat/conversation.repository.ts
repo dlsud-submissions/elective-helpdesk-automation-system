@@ -16,7 +16,10 @@ import type {
 
 /** Process-local repository for tests and offline development only. */
 export class InMemoryConversationRepository implements ConversationRepository {
-  private readonly conversations = new Map<string, ConversationRecord>();
+  private readonly conversations = new Map<
+    string,
+    ConversationRecord & { unreadEmployee: boolean; unreadAgent: boolean }
+  >();
   private readonly messages: MessageRecord[] = [];
   private clock = 0;
 
@@ -36,16 +39,19 @@ export class InMemoryConversationRepository implements ConversationRepository {
       title: input.title,
       archivedAt: null,
       deletedAt: null,
+      isUnread: false,
+      unreadEmployee: false,
+      unreadAgent: false,
       createdAt: now,
       updatedAt: now,
     };
     this.conversations.set(conversation.id, conversation);
-    return { ...conversation };
+    return this.toRecord(conversation);
   }
 
   async findById(id: string): Promise<ConversationRecord | null> {
     const conversation = this.conversations.get(id);
-    return conversation ? { ...conversation } : null;
+    return conversation ? this.toRecord(conversation) : null;
   }
 
   async listByRequester(requesterId: string): Promise<ConversationRecord[]> {
@@ -57,7 +63,7 @@ export class InMemoryConversationRepository implements ConversationRepository {
           !conversation.deletedAt
       )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map((conversation) => ({ ...conversation }));
+      .map((conversation) => this.toRecord(conversation, 'employee'));
   }
 
   async listByIds(conversationIds: string[]): Promise<ConversationRecord[]> {
@@ -70,7 +76,7 @@ export class InMemoryConversationRepository implements ConversationRepository {
           !conversation.deletedAt
       )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map((conversation) => ({ ...conversation }));
+      .map((conversation) => this.toRecord(conversation, 'agent'));
   }
 
   async listArchived(requesterId: string): Promise<ConversationRecord[]> {
@@ -82,14 +88,14 @@ export class InMemoryConversationRepository implements ConversationRepository {
           !conversation.deletedAt
       )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map((conversation) => ({ ...conversation }));
+      .map((conversation) => this.toRecord(conversation, 'employee'));
   }
 
   async rename(id: string, title: string): Promise<ConversationRecord | null> {
     const conversation = this.conversations.get(id);
     if (!conversation || conversation.deletedAt) return null;
     conversation.title = title;
-    return { ...conversation };
+    return this.toRecord(conversation);
   }
 
   async archive(
@@ -99,7 +105,15 @@ export class InMemoryConversationRepository implements ConversationRepository {
     const conversation = this.conversations.get(id);
     if (!conversation || conversation.deletedAt) return null;
     conversation.archivedAt = archived ? this.now() : null;
-    return { ...conversation };
+    return this.toRecord(conversation);
+  }
+
+  async markRead(id: string, reader: 'employee' | 'agent'): Promise<boolean> {
+    const conversation = this.conversations.get(id);
+    if (!conversation || conversation.deletedAt) return false;
+    if (reader === 'employee') conversation.unreadEmployee = false;
+    else conversation.unreadAgent = false;
+    return true;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -118,7 +132,14 @@ export class InMemoryConversationRepository implements ConversationRepository {
     this.messages.push(...saved);
     for (const message of saved) {
       const conversation = this.conversations.get(message.conversationId);
-      if (conversation) conversation.updatedAt = message.createdAt;
+      if (conversation) {
+        conversation.updatedAt = message.createdAt;
+        if (message.senderType === 'user' || message.senderType === 'system') {
+          conversation.unreadAgent = true;
+        } else if (message.senderType === 'agent') {
+          conversation.unreadEmployee = true;
+        }
+      }
     }
     return saved.map((message) => ({ ...message }));
   }
@@ -128,6 +149,30 @@ export class InMemoryConversationRepository implements ConversationRepository {
       .filter((message) => message.conversationId === conversationId)
       .map((message) => ({ ...message }));
   }
+
+  private toRecord(
+    conversation: ConversationRecord & {
+      unreadEmployee: boolean;
+      unreadAgent: boolean;
+    },
+    reader?: 'employee' | 'agent'
+  ): ConversationRecord {
+    return {
+      id: conversation.id,
+      requesterId: conversation.requesterId,
+      title: conversation.title,
+      archivedAt: conversation.archivedAt,
+      deletedAt: conversation.deletedAt,
+      isUnread:
+        reader === 'employee'
+          ? conversation.unreadEmployee
+          : reader === 'agent'
+            ? conversation.unreadAgent
+            : false,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    };
+  }
 }
 
 type ConversationRow = {
@@ -136,6 +181,8 @@ type ConversationRow = {
   title: string;
   archived_at: string | null;
   deleted_at: string | null;
+  unread_employee: boolean;
+  unread_agent: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -150,12 +197,21 @@ type MessageRow = {
   created_at: string;
 };
 
-const toConversation = (row: ConversationRow): ConversationRecord => ({
+const toConversation = (
+  row: ConversationRow,
+  reader?: 'employee' | 'agent'
+): ConversationRecord => ({
   id: row.id,
   requesterId: row.requester_id,
   title: row.title,
   archivedAt: row.archived_at,
   deletedAt: row.deleted_at,
+  isUnread:
+    reader === 'employee'
+      ? row.unread_employee
+      : reader === 'agent'
+        ? row.unread_agent
+        : false,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -171,7 +227,7 @@ const toMessage = (row: MessageRow): MessageRecord => ({
 });
 
 const conversationColumns =
-  'id, requester_id, title, archived_at, deleted_at, created_at, updated_at';
+  'id, requester_id, title, archived_at, deleted_at, unread_employee, unread_agent, created_at, updated_at';
 const messageColumns =
   'id, conversation_id, sender_type, content, outcome, source_refs, created_at';
 
@@ -215,7 +271,7 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .limit(50)
       .returns<ConversationRow[]>();
     if (error) throw databaseError(error, 'conversation list');
-    return (data ?? []).map(toConversation);
+    return (data ?? []).map((row) => toConversation(row, 'employee'));
   }
 
   async listByIds(conversationIds: string[]): Promise<ConversationRecord[]> {
@@ -230,7 +286,7 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .limit(50)
       .returns<ConversationRow[]>();
     if (error) throw databaseError(error, 'assigned conversation list');
-    return (data ?? []).map(toConversation);
+    return (data ?? []).map((row) => toConversation(row, 'agent'));
   }
 
   async listArchived(requesterId: string): Promise<ConversationRecord[]> {
@@ -244,7 +300,7 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .limit(50)
       .returns<ConversationRow[]>();
     if (error) throw databaseError(error, 'archived conversation list');
-    return (data ?? []).map(toConversation);
+    return (data ?? []).map((row) => toConversation(row, 'employee'));
   }
 
   async rename(id: string, title: string): Promise<ConversationRecord | null> {
@@ -272,6 +328,19 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .maybeSingle<ConversationRow>();
     if (error) throw databaseError(error, 'conversation archive');
     return data ? toConversation(data) : null;
+  }
+
+  async markRead(id: string, reader: 'employee' | 'agent'): Promise<boolean> {
+    const field = reader === 'employee' ? 'unread_employee' : 'unread_agent';
+    const { data, error } = await this.client()
+      .from('conversations')
+      .update({ [field]: false })
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle<{ id: string }>();
+    if (error) throw databaseError(error, 'conversation mark read');
+    return Boolean(data);
   }
 
   async delete(id: string): Promise<boolean> {

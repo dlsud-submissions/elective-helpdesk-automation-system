@@ -23,21 +23,15 @@ import type {
 } from './tickets.types.js';
 
 export const allowedStatuses: TicketStatus[] = [
-  'new',
-  'open',
-  'in_progress',
   'pending',
+  'in_progress',
   'resolved',
-  'closed',
 ];
 
 export const validTransitions: Record<TicketStatus, TicketStatus[]> = {
-  new: ['open', 'in_progress', 'resolved'],
-  open: ['in_progress', 'pending', 'resolved'],
+  pending: ['in_progress', 'resolved'],
   in_progress: ['pending', 'resolved'],
-  pending: ['open', 'resolved'],
-  resolved: ['closed'],
-  closed: [],
+  resolved: ['pending', 'in_progress'],
 };
 
 const isStaff = (context: RequestContext) =>
@@ -406,8 +400,10 @@ export class TicketService {
     const mutation = input as TicketMutation;
     const allowedFields = new Set([
       'status',
+      'isOpen',
       'assigneeId',
       'notes',
+      'reason',
       'expectedUpdatedAt',
     ]);
     if (Object.keys(mutation).some((field) => !allowedFields.has(field))) {
@@ -446,6 +442,29 @@ export class TicketService {
         patch.status = status;
         changes.push(`status ${ticket.status} → ${status}`);
       }
+    }
+
+    if (mutation.isOpen !== undefined) {
+      if (typeof mutation.isOpen !== 'boolean') {
+        throw badRequest('isOpen must be a boolean.');
+      }
+      if (mutation.isOpen !== ticket.isOpen) {
+        if (typeof mutation.reason !== 'string' || !mutation.reason.trim()) {
+          throw badRequest('A reason is required to close or reopen a ticket.');
+        }
+        if (mutation.reason.trim().length > 1000) {
+          throw badRequest('Reason must be 1000 characters or fewer.');
+        }
+        patch.isOpen = mutation.isOpen;
+        changes.push(
+          `${mutation.isOpen ? 'ticket reopened' : 'ticket closed'}: ${mutation.reason.trim()}`
+        );
+      }
+    }
+    if ('reason' in mutation && mutation.isOpen === undefined) {
+      throw badRequest(
+        'reason can only be used when closing or reopening a ticket.'
+      );
     }
 
     if (mutation.assigneeId !== undefined) {
@@ -491,7 +510,11 @@ export class TicketService {
 
     await this.repository.recordAudit({
       ticketId: ticket.id,
-      action: patch.status ? 'ticket.status_updated' : 'ticket.updated',
+      action: patch.status
+        ? 'ticket.status_updated'
+        : patch.isOpen !== undefined
+          ? 'ticket.open_state_updated'
+          : 'ticket.updated',
       actorId: context.userId,
       outcome: 'success',
       summary: `Ticket ${ticket.reference}: ${changes.join(', ')}.`,
@@ -519,6 +542,36 @@ export class TicketService {
       ]);
     }
 
+    return updated;
+  }
+
+  async confirmResolution(
+    ticketId: string,
+    context: RequestContext
+  ): Promise<TicketRecord> {
+    if (context.role !== 'employee') {
+      throw forbidden('Only employees can confirm ticket resolution.');
+    }
+    if (!isUuid(ticketId)) throw notFound('Ticket not found.');
+    const ticket = await this.repository.findById(ticketId);
+    if (!ticket || ticket.requesterId !== context.userId) {
+      throw notFound('Ticket not found.');
+    }
+    if (ticket.status === 'resolved' && !ticket.isOpen) return ticket;
+
+    const updated = await this.repository.update(
+      ticket.id,
+      { status: 'resolved', isOpen: false },
+      ticket.updatedAt
+    );
+    if (!updated) throw new HttpError(409, 'conflict', 'Please try again.');
+    await this.repository.recordAudit({
+      ticketId: ticket.id,
+      action: 'ticket.requester_confirmed_resolution',
+      actorId: context.userId,
+      outcome: 'success',
+      summary: `Requester confirmed resolution for ${ticket.reference}.`,
+    });
     return updated;
   }
 }

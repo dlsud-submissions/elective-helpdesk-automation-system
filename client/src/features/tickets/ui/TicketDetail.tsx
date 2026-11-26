@@ -14,7 +14,7 @@ import {
 import { useDocumentTitle } from '../../../shared/ui/useDocumentTitle';
 import { useProfile } from '../../auth';
 import { getTicket, listStaff, updateTicket } from '../api/tickets.api';
-import { priorityLabels, statusLabels, statusOptionsFor } from '../model/queue';
+import { priorityLabels, statusLabels, statusOptions } from '../model/queue';
 import type { StaffMember, Ticket, TicketStatus } from '../types';
 
 type SaveState =
@@ -33,10 +33,13 @@ export function TicketDetail({
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
-  const [status, setStatus] = useState<TicketStatus>('new');
+  const [status, setStatus] = useState<TicketStatus>('pending');
   const [assignee, setAssignee] = useState('');
   const [notes, setNotes] = useState('');
   const [save, setSave] = useState<SaveState>({ status: 'idle' });
+  const [openStateError, setOpenStateError] = useState<string | null>(null);
+  const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
+  const [openStateReason, setOpenStateReason] = useState('');
   const profile = useProfile();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const loadCount = useRef(0);
@@ -126,6 +129,31 @@ export function TicketDetail({
         : save.error.message
       : null;
 
+  async function changeOpenState(event: FormEvent) {
+    event.preventDefault();
+    if (!ticket || !openStateReason.trim() || save.status === 'saving') return;
+    setOpenStateError(null);
+    setSave({ status: 'saving' });
+    try {
+      const updated = await updateTicket(ticket.id, {
+        isOpen: !ticket.isOpen,
+        reason: openStateReason.trim(),
+        expectedUpdatedAt: ticket.updatedAt,
+      });
+      setTicket(updated);
+      onSaved(updated);
+      setSave({
+        status: 'saved',
+        message: `Ticket ${updated.isOpen ? 'reopened' : 'closed'}.`,
+      });
+      setReasonDialogOpen(false);
+      setOpenStateReason('');
+    } catch (error) {
+      setOpenStateError(toApiError(error).message);
+      setSave({ status: 'idle' });
+    }
+  }
+
   return (
     <article className="panel ticket-detail" aria-labelledby="ticket-title">
       <header>
@@ -187,7 +215,7 @@ export function TicketDetail({
             onChange={(event) => setStatus(event.target.value as TicketStatus)}
             disabled={save.status === 'saving'}
           >
-            {statusOptionsFor(ticket.status).map((option) => (
+            {statusOptions.map((option) => (
               <option key={option} value={option}>
                 {statusLabels[option]}
               </option>
@@ -221,6 +249,83 @@ export function TicketDetail({
           {save.status === 'saving' ? 'Saving…' : 'Save'}
         </button>
       </form>
+
+      <div className="row ticket-open-state">
+        <span
+          className={`badge ${ticket.isOpen ? 'badge--open' : 'badge--closed'}`}
+        >
+          {ticket.isOpen ? 'Open ticket' : 'Closed ticket'}
+        </span>
+        <button
+          type="button"
+          className="button button--secondary"
+          disabled={save.status === 'saving'}
+          onClick={() => {
+            setOpenStateError(null);
+            setOpenStateReason('');
+            setReasonDialogOpen(true);
+          }}
+        >
+          {ticket.isOpen
+            ? 'Close ticket'
+            : ticket.status === 'resolved'
+              ? 'Reopen ticket'
+              : 'Open ticket'}
+        </button>
+      </div>
+      {reasonDialogOpen ? (
+        <div className="modal-backdrop">
+          <section
+            className="panel reason-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ticket-open-reason-title"
+          >
+            <h3 id="ticket-open-reason-title">
+              {ticket.isOpen ? 'Close ticket' : 'Reopen ticket'}
+            </h3>
+            <form onSubmit={(event) => void changeOpenState(event)}>
+              <label className="field">
+                <span>Reason</span>
+                <textarea
+                  autoFocus
+                  required
+                  maxLength={1000}
+                  rows={4}
+                  value={openStateReason}
+                  onChange={(event) => setOpenStateReason(event.target.value)}
+                />
+              </label>
+              {openStateError ? (
+                <p className="alert alert--error" role="alert">
+                  {openStateError}
+                </p>
+              ) : null}
+              <div className="row">
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={!openStateReason.trim() || save.status === 'saving'}
+                >
+                  {save.status === 'saving'
+                    ? 'Saving…'
+                    : ticket.isOpen
+                      ? 'Close ticket'
+                      : 'Reopen ticket'}
+                </button>
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  disabled={save.status === 'saving'}
+                  onClick={() => setReasonDialogOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
 
       {save.status === 'saved' ? (
         <p className="alert alert--success" role="status">

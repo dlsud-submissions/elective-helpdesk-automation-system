@@ -1,8 +1,16 @@
-import { useEffect, useRef } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth, useProfile } from '../features/auth';
 
 const roleLabels = { employee: 'Employee', agent: 'Agent', admin: 'Admin' };
+type SortMode = 'manual' | 'alphabetical' | 'recent' | 'created';
+type NavItem = {
+  path: string;
+  label: string;
+  icon: string;
+  manualOrder: number;
+  createdOrder: number;
+};
 
 /** First path segment, e.g. "/queue/abc" -> "queue". */
 const sectionOf = (pathname: string) => pathname.split('/')[1] ?? '';
@@ -10,8 +18,7 @@ const sectionOf = (pathname: string) => pathname.split('/')[1] ?? '';
 /**
  * When the user moves to another section, focus the new page's h1 so
  * keyboard and screen-reader users start at the new content instead of
- * staying on the nav link. Changes inside a section (a chat id, a ticket id)
- * are handled by the page itself; the first render keeps default focus.
+ * staying on the nav link.
  */
 function useFocusPageHeadingOnNavigate() {
   const { pathname } = useLocation();
@@ -20,7 +27,6 @@ function useFocusPageHeadingOnNavigate() {
   useEffect(() => {
     const section = sectionOf(pathname);
     if (previous.current !== null && previous.current !== section) {
-      // Wait a frame so the new route has rendered its heading.
       const frame = requestAnimationFrame(() => {
         const main = document.getElementById('main');
         const heading = main?.querySelector<HTMLElement>('h1');
@@ -39,11 +45,191 @@ function useFocusPageHeadingOnNavigate() {
   }, [pathname]);
 }
 
+function NavIcon({ name }: { name: string }) {
+  const paths: Record<string, string> = {
+    home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+    chat: 'M4 5h16v12H9l-5 4z M8 10h8 M8 13h5',
+    ticket:
+      'M4 5h16v4a3 3 0 0 0 0 6v4H4v-4a3 3 0 0 0 0-6z M12 8v1 M12 12v1 M12 16v1',
+    archive: 'M3 5h18v4H3z M5 9v11h14V9 M10 13h4',
+    queue: 'M4 6h16 M4 12h16 M4 18h16 M7 6v0 M7 12v0 M7 18v0',
+    users:
+      'M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1 M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7 M16 4.2a3.5 3.5 0 0 1 0 6.8 M17 15h1a4 4 0 0 1 3 3.9V20',
+    book: 'M4 4h7a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H4z M20 4h-3a3 3 0 0 0-3 3v13a3 3 0 0 1 3-3h3z',
+    settings:
+      'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z M19.4 15a1.8 1.8 0 0 0 .9-1.6v-2.8a1.8 1.8 0 0 0-.9-1.6',
+  };
+  return (
+    <svg
+      className="nav__icon"
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={paths[name]} />
+    </svg>
+  );
+}
+
 /** Role-aware navigation. Hiding links is UX only; the API enforces roles. */
 export function AppShell() {
   const profile = useProfile();
   const { signOut } = useAuth();
+  const { pathname } = useLocation();
+  const [sortMode, setSortMode] = useState<SortMode>('manual');
+  const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortControlsOpen, setSortControlsOpen] = useState(false);
+  const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('harbor-sidebar-collapsed') === 'true'
+  );
+  const [manualOrder, setManualOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`harbor-nav-order:${profile.role}`);
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((path): path is string => typeof path === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  });
   useFocusPageHeadingOnNavigate();
+
+  useEffect(() => {
+    localStorage.setItem('harbor-sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      `harbor-nav-order:${profile.role}`,
+      JSON.stringify(manualOrder)
+    );
+  }, [manualOrder, profile.role]);
+
+  useEffect(() => {
+    const section = sectionOf(pathname);
+    if (section) {
+      setRecentPaths((paths) => [
+        section,
+        ...paths.filter((path) => path !== section),
+      ]);
+    }
+  }, [pathname]);
+
+  const items = useMemo(() => {
+    const links: NavItem[] = [
+      {
+        path: '/dashboard',
+        label: 'Dashboard',
+        icon: 'home',
+        manualOrder: 0,
+        createdOrder: 0,
+      },
+      ...(profile.role === 'employee' || profile.role === 'agent'
+        ? [
+            {
+              path: '/chat',
+              label: 'Chat',
+              icon: 'chat',
+              manualOrder: 1,
+              createdOrder: 1,
+            },
+            {
+              path: '/tickets',
+              label: 'My tickets',
+              icon: 'ticket',
+              manualOrder: 2,
+              createdOrder: 2,
+            },
+          ]
+        : []),
+      ...(profile.role === 'employee'
+        ? [
+            {
+              path: '/archive',
+              label: 'Archive',
+              icon: 'archive',
+              manualOrder: 3,
+              createdOrder: 3,
+            },
+          ]
+        : []),
+      ...(profile.role === 'admin'
+        ? [
+            {
+              path: '/queue',
+              label: 'Queue',
+              icon: 'queue',
+              manualOrder: 1,
+              createdOrder: 1,
+            },
+            {
+              path: '/admin/users',
+              label: 'Users',
+              icon: 'users',
+              manualOrder: 2,
+              createdOrder: 2,
+            },
+            {
+              path: '/admin/kb-articles',
+              label: 'Knowledge Base',
+              icon: 'book',
+              manualOrder: 3,
+              createdOrder: 3,
+            },
+          ]
+        : []),
+      {
+        path: '/settings',
+        label: 'Settings',
+        icon: 'settings',
+        manualOrder: 4,
+        createdOrder: 4,
+      },
+    ];
+
+    return [...links].sort((a, b) => {
+      let order = 0;
+      if (sortMode === 'alphabetical') {
+        order = a.label.localeCompare(b.label);
+      } else if (sortMode === 'recent') {
+        const aIndex = recentPaths.indexOf(sectionOf(a.path));
+        const bIndex = recentPaths.indexOf(sectionOf(b.path));
+        order =
+          (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) -
+          (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+        if (order === 0) order = a.manualOrder - b.manualOrder;
+      } else if (sortMode === 'created') {
+        order = a.createdOrder - b.createdOrder;
+      } else {
+        const aIndex = manualOrder.indexOf(a.path);
+        const bIndex = manualOrder.indexOf(b.path);
+        order =
+          (aIndex < 0 ? a.manualOrder + links.length : aIndex) -
+          (bIndex < 0 ? b.manualOrder + links.length : bIndex);
+      }
+      return direction === 'asc' ? order : -order;
+    });
+  }, [direction, manualOrder, profile.role, recentPaths, sortMode]);
+
+  const moveNavItem = (sourcePath: string, targetPath: string) => {
+    const reordered = [...items];
+    const sourceIndex = reordered.findIndex((item) => item.path === sourcePath);
+    const targetIndex = reordered.findIndex((item) => item.path === targetPath);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
+      return;
+    const [dragged] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, dragged!);
+    const paths = reordered.map((item) => item.path);
+    setManualOrder(direction === 'desc' ? paths.reverse() : paths);
+  };
 
   return (
     <div className="app-shell">
@@ -51,47 +237,10 @@ export function AppShell() {
         Skip to content
       </a>
       <header className="topbar">
-        <span className="brand brand--app">
+        <Link to="/dashboard" className="brand brand--app">
           <img src="/assets/logo.png" alt="" className="brand__logo" />
           Harbor Tickets
-        </span>
-        <nav aria-label="Main">
-          <ul className="nav">
-            {profile.role === 'employee' || profile.role === 'agent' ? (
-              <>
-                <li>
-                  <NavLink to="/chat">Chat</NavLink>
-                </li>
-                <li>
-                  <NavLink to="/tickets">My tickets</NavLink>
-                </li>
-              </>
-            ) : null}
-            {profile.role === 'employee' ? (
-              <li>
-                <NavLink to="/archive">Archive</NavLink>
-              </li>
-            ) : null}
-            <li>
-              <NavLink to="/dashboard">Dashboard</NavLink>
-            </li>
-            {profile.role === 'admin' ? (
-              <li>
-                <NavLink to="/queue">Queue</NavLink>
-              </li>
-            ) : null}
-            {profile.role === 'admin' ? (
-              <li>
-                <NavLink to="/admin/users">Users</NavLink>
-              </li>
-            ) : null}
-            {profile.role === 'admin' ? (
-              <li>
-                <NavLink to="/admin/kb-articles">Knowledge Base</NavLink>
-              </li>
-            ) : null}
-          </ul>
-        </nav>
+        </Link>
         <div className="topbar__user">
           <span>
             {profile.displayName}{' '}
@@ -107,31 +256,139 @@ export function AppShell() {
             Sign out
           </button>
         </div>
-        <NavLink
-          to="/settings"
-          className="topbar__settings"
-          aria-label="Settings"
-          title="Settings"
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
-            <path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z" />
-          </svg>
-        </NavLink>
       </header>
-      <main id="main" className="app-main" tabIndex={-1}>
-        <Outlet />
-      </main>
+      <div
+        className={`app-layout${sidebarCollapsed ? ' app-layout--collapsed' : ''}`}
+      >
+        <aside
+          className={`app-sidebar${sidebarCollapsed ? ' app-sidebar--collapsed' : ''}`}
+          id="app-sidebar"
+        >
+          <div className="app-sidebar__controls">
+            <button
+              type="button"
+              className="button button--icon sidebar-toggle"
+              aria-label={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar`}
+              aria-expanded={!sidebarCollapsed}
+              aria-controls="app-sidebar"
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M9 4v16m5-11 2 3-2 3" />
+              </svg>
+            </button>
+            <div className="nav-sort">
+              <button
+                type="button"
+                className="button button--icon nav-sort__toggle"
+                aria-label={`${sortControlsOpen ? 'Hide' : 'Show'} sidebar sort options`}
+                aria-expanded={sortControlsOpen}
+                aria-controls="nav-sort-controls"
+                title={`${sortControlsOpen ? 'Hide' : 'Show'} sidebar sort options`}
+                onClick={() => setSortControlsOpen((open) => !open)}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 6h10M4 12h7M4 18h4M18 5v14m0 0-3-3m3 3 3-3" />
+                </svg>
+              </button>
+              {sortControlsOpen ? (
+                <div className="nav-sort__controls" id="nav-sort-controls">
+                  <label className="field field--inline">
+                    <span>Sort navigation</span>
+                    <select
+                      aria-label="Sort navigation"
+                      value={sortMode}
+                      onChange={(event) =>
+                        setSortMode(event.target.value as SortMode)
+                      }
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="alphabetical">Alphabetical</option>
+                      <option value="recent">Recent</option>
+                      <option value="created">Created</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="button button--secondary nav-sort__direction"
+                    aria-label={`Sort ${direction === 'asc' ? 'ascending' : 'descending'}`}
+                    onClick={() =>
+                      setDirection((current) =>
+                        current === 'asc' ? 'desc' : 'asc'
+                      )
+                    }
+                  >
+                    {direction === 'asc' ? 'ASC ↑' : 'DESC ↓'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <nav aria-label="Main">
+            <ul className="nav">
+              {items.map((item) => (
+                <li
+                  key={item.path}
+                  draggable={sortMode === 'manual'}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', item.path);
+                  }}
+                  onDragOver={(event) => {
+                    if (sortMode === 'manual') event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (sortMode === 'manual') {
+                      moveNavItem(
+                        event.dataTransfer.getData('text/plain'),
+                        item.path
+                      );
+                    }
+                  }}
+                >
+                  <NavLink
+                    to={item.path}
+                    aria-label={item.label}
+                    title={item.label}
+                  >
+                    <NavIcon name={item.icon} />
+                    <span className="nav__label">{item.label}</span>
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </aside>
+        <main
+          id="main"
+          className={`app-main${sidebarCollapsed && sectionOf(pathname) === 'chat' ? ' app-main--chat-sidebar-collapsed' : ''}`}
+          tabIndex={-1}
+        >
+          <Outlet context={{ mainSidebarCollapsed: sidebarCollapsed }} />
+        </main>
+      </div>
     </div>
   );
 }

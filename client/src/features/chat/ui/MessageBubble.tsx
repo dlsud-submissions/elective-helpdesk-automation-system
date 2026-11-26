@@ -169,7 +169,9 @@ export function MessageBubble({
       <div className="message__body pre-line">{message.content}</div>
       <SourceList sources={message.sourceRefs} messageId={message.id} />
       {onCreateTicket && (message.outcome === 'answered' || uncertain) ? (
-        <div className="message__actions">
+        <div
+          className={`message__actions${uncertain ? ' message__actions--stacked' : ''}`}
+        >
           <span className="muted small">
             {uncertain ? 'Need more help?' : 'Did this not solve it?'}
           </span>
